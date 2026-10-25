@@ -135,3 +135,9 @@ Die Tests verwenden ausschließlich erzeugte Testbilder und erfundene Graph-Antw
 ## Lizenz
 
 [MIT](LICENSE)
+
+## Marken
+
+OneDrive und Microsoft sind Marken der Microsoft Corporation. Dieses Projekt ist ein unabhängiges Open-Source-Projekt und steht in keiner Verbindung zu Microsoft. Es wird von Microsoft weder unterstützt noch geprüft.
+
+*OneDrive and Microsoft are trademarks of Microsoft Corporation. This is an independent open-source project and is not affiliated with, endorsed or sponsored by Microsoft.*
