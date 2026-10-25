@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import albums, config, db, export, geocode, local_source, queries, sync, winfiles
+from . import __version__, albums, config, db, export, geocode, local_source, queries, sync, updates, winfiles
 from .auth import Auth, AuthError
 from .graph_client import GraphClient, GraphError, NotLoggedIn
 from .jobs import Job
@@ -154,6 +154,8 @@ def create_app(state: State | None = None) -> FastAPI:
             "WHERE source = 'local' AND meta_level = 'partial' AND deleted = 0"
         ).fetchone()
         return {
+            "version": __version__,
+            "data_dir": str(config.data_dir()),
             "online_configured": auth is not None,
             "account": auth.account_name() if auth else None,
             "photos": conn.execute("SELECT COUNT(*) FROM photo WHERE deleted = 0").fetchone()[0],
@@ -164,6 +166,18 @@ def create_app(state: State | None = None) -> FastAPI:
             "jobs": {j.kind: j.to_dict() for j in (state.sync_job, state.enrich_job, state.export_job, state.login_job)},
             "export_dir": str(config.default_export_dir()),
         }
+
+    @app.get("/api/update")
+    def update_check():
+        return updates.pruefen()
+
+    @app.post("/api/open-releases")
+    def open_releases():
+        """Release-Seite im Standardbrowser öffnen (aus dem Programmfenster heraus)."""
+        import webbrowser
+
+        webbrowser.open(config.RELEASES_URL)
+        return {"ok": True}
 
     @app.post("/api/setup")
     def setup(body: SetupIn):

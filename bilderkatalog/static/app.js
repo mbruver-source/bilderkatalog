@@ -85,11 +85,36 @@ async function boot() {
 
 function applyStatus(status) {
   state.status = status;
+  $("#version-btn").textContent = `v${status.version}`;
   $("#online-btn").textContent = status.account ? `Online: ${status.account}` : "Online-Zugang";
   const partial = status.partial.count;
   $("#enrich-btn").hidden = partial === 0;
   $("#enrich-btn").textContent = `Details nachladen (${partial.toLocaleString("de-DE")})`;
 }
+
+// ---------- Version und Updates ----------
+
+$("#version-btn").addEventListener("click", () => {
+  $("#version-nr").textContent = state.status.version;
+  $("#version-daten").textContent = state.status.data_dir;
+  $("#update-msg").replaceChildren();
+  $("#version-dlg").showModal();
+});
+$("#version-close").addEventListener("click", () => $("#version-dlg").close());
+$("#releases-btn").addEventListener("click", () => api("/api/open-releases", { method: "POST" }));
+$("#update-btn").addEventListener("click", async () => {
+  const msg = $("#update-msg");
+  msg.textContent = "Frage GitHub …";
+  try {
+    const r = await api("/api/update");
+    if (r.error) msg.textContent = r.error;
+    else if (r.newer) msg.replaceChildren(`Neue Version ${r.latest} verfügbar. `,
+      el("button", { class: "primary", onclick: () => api("/api/open-releases", { method: "POST" }) }, "Herunterladen"));
+    else msg.textContent = `Du hast die neueste Version (${r.current}).`;
+  } catch (err) {
+    msg.textContent = err.message;
+  }
+});
 
 // ---------- Optionaler Online-Zugang ----------
 

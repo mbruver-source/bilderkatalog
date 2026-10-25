@@ -124,10 +124,14 @@ def _window() -> int:
     # Windows erwartet .ico, Qt/GTK ein normales Bild
     icon = Path(__file__).parent / "static" / ("icon.ico" if sys.platform == "win32" else "icon.png")
     if sys.platform == "win32":
-        # Eigene Taskleisten-Gruppe, sonst zeigt Windows das Python-Symbol
         import ctypes
 
+        # Eigene Taskleisten-Gruppe, sonst zeigt Windows das Python-Symbol
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Bilderkatalog")
+        # Laufkennung für den Installer (installer.iss, AppMutex): Setup und Deinstallation
+        # bitten dann zuerst darum, das Programm zu schließen. Handles leben bis Prozessende.
+        _laufkennung = [ctypes.windll.kernel32.CreateMutexW(None, False, name)  # noqa: F841
+                        for name in ("Bilderkatalog-Laufend", "Global\\Bilderkatalog-Laufend")]
     webview.create_window(
         "Bilderkatalog", f"http://127.0.0.1:{port}/",
         width=1400, height=900, min_size=(800, 500), text_select=True, maximized=True,

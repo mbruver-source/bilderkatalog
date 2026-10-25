@@ -19,6 +19,11 @@ load_dotenv()
 APP_NAME = "bilderkatalog"
 GRAPH_URL = "https://graph.microsoft.com/v1.0"
 
+# Releases (Versionsprüfung im Programm, Download neuer Versionen)
+GITHUB_REPO = "mbruver-source/bilderkatalog"
+RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
+LATEST_RELEASE_API_URL = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
 # Nur Leserechte. "offline_access" ergänzt MSAL automatisch.
 # Diese Liste darf niemals eine Schreibberechtigung enthalten.
 SCOPES = ["Files.Read"]

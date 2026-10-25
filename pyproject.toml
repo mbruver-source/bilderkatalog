@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bilderkatalog"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Bilderkatalog für OneDrive ohne Azure-Registrierung: sortieren, gruppieren, virtuelle Alben und ZIP-Export über Metadaten."
 readme = "README.md"
 license = "MIT"
@@ -36,6 +36,9 @@ bilderkatalog-app = "bilderkatalog.__main__:main_gui"
 
 [tool.setuptools]
 packages = ["bilderkatalog"]
+
+[tool.setuptools.dynamic]
+version = { attr = "bilderkatalog.version.VERSION" }  # aus version.txt via bump_version.py
 
 [tool.setuptools.package-data]
 bilderkatalog = ["static/*"]

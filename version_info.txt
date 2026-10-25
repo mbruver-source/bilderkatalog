@@ -1,0 +1,41 @@
+# UTF-8
+#
+# Windows-Versionsinformationen für PyInstaller (siehe build.spec, Parameter
+# `version="version_info.txt"`). Wird in die .exe eingebettet und erscheint im
+# Explorer unter "Eigenschaften → Details".
+#
+# WIRD AUTOMATISCH von bump_version.py erzeugt – bitte nicht von Hand editieren.
+# Die gültige Versionsnummer steht in version.txt.
+
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,        # VOS_NT_WINDOWS32
+    fileType=0x1,      # VFT_APP
+    subtype=0x0,
+    date=(0, 0),
+  ),
+  kids=[
+    StringFileInfo(
+      [
+        StringTable(
+          "040704B0",  # 0407 = Deutsch, 04B0 = Unicode
+          [
+            StringStruct("CompanyName", "Marco"),
+            StringStruct("FileDescription", "Bilderkatalog - Fotos sortieren, gruppieren und als ZIP exportieren"),
+            StringStruct("FileVersion", "1.0.0.0"),
+            StringStruct("InternalName", "Bilderkatalog"),
+            StringStruct("LegalCopyright", "Copyright (c) 2026 Marco, MIT-Lizenz"),
+            StringStruct("OriginalFilename", "Bilderkatalog.exe"),
+            StringStruct("ProductName", "Bilderkatalog"),
+            StringStruct("ProductVersion", "1.0.0.0"),
+          ]
+        )
+      ]
+    ),
+    VarFileInfo([VarStruct("Translation", [1031, 1200])]),  # 1031 = Deutsch, 1200 = Unicode
+  ]
+)

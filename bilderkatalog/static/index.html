@@ -26,6 +26,7 @@
       <button id="sync-btn">Aktualisieren</button>
       <button id="enrich-btn" hidden title="Details (Ort, Kamera, Vorschau) der Nur-online-Bilder nachladen">Details nachladen</button>
       <button class="link account" id="online-btn" title="Optionaler Zugang über Microsoft Graph">Online-Zugang</button>
+      <button class="link account" id="version-btn" title="Version und Updates">Version</button>
     </header>
     <div class="jobbar" id="jobbar" hidden>
       <span id="job-msg"></span>
@@ -137,6 +138,18 @@
     <p><button class="primary" id="login-btn" hidden>Mit Microsoft anmelden</button></p>
     <p class="muted" id="login-msg"></p>
     <div class="actions"><button id="online-close">Schließen</button></div>
+  </dialog>
+
+  <!-- Version -->
+  <dialog id="version-dlg">
+    <h3>Bilderkatalog</h3>
+    <p>Version <strong id="version-nr"></strong></p>
+    <p class="muted">Copyright (c) 2026 Marco · MIT-Lizenz<br>
+      Deine Daten liegen in <code id="version-daten"></code></p>
+    <p><button id="update-btn">Nach Updates suchen</button></p>
+    <p id="update-msg"></p>
+    <p><button class="link" id="releases-btn">Alle Versionen auf GitHub ansehen</button></p>
+    <div class="actions"><button id="version-close" class="primary">Schließen</button></div>
   </dialog>
 
   <!-- Details nachladen -->

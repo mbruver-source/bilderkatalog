@@ -44,23 +44,36 @@ Bilder, die schon lokal vorhanden sind, werden direkt vollständig gelesen.
 - Spätere Aktualisierungen lesen nur neue oder geänderte Dateien. Verschobene oder umbenannte Bilder behalten ihre Albumzuordnung.
 - Funktioniert auch mit jedem anderen Ordner, etwa einer externen Festplatte. Die Platzhalter-Funktionen gibt es nur unter Windows.
 
-## Voraussetzungen
+## Installation (Windows)
 
-- Python 3.10 oder neuer
-- Windows mit OneDrive-Client (für den OneDrive-Ordner). Unter macOS/Linux funktionieren normale Ordner.
+1. Auf der Seite [Releases](https://github.com/mbruver-source/bilderkatalog/releases) die
+   neueste Datei `Bilderkatalog-Setup-X.Y.Z.exe` herunterladen.
+2. Doppelklicken und den Anweisungen folgen. Adminrechte sind nicht nötig.
+3. Die Setup-Datei ist nicht signiert. Windows zeigt deshalb beim ersten Start eventuell
+   „Der Computer wurde durch Windows geschützt“. Dann **Weitere Informationen → Trotzdem ausführen** klicken.
 
-## Installation
+Für ein **Update** die neue Setup-Datei einfach über die alte Version installieren. Katalog,
+Alben und Vorschaubilder bleiben erhalten. Ob es eine neue Version gibt, zeigt im Programm
+der Knopf mit der Versionsnummer oben rechts → **Nach Updates suchen**.
+
+## Installation für Entwickler (alle Systeme)
+
+Voraussetzung: Python 3.10 oder neuer. Unter macOS/Linux funktionieren normale Ordner, die
+OneDrive-Platzhalter-Funktionen gibt es nur unter Windows.
 
 ```bash
-git clone <URL dieses Repositorys>
-cd <Repository-Ordner>
+git clone https://github.com/mbruver-source/bilderkatalog.git
+cd bilderkatalog
 python -m venv .venv
 # Windows:      .venv\Scripts\activate
 # macOS/Linux:  source .venv/bin/activate
-pip install .
+pip install -e ".[dev]"
 # optional für HEIC-Fotos (iPhone):
 pip install ".[heic]"
 ```
+
+Wie der Windows-Installer gebaut und ein Release veröffentlicht wird, steht in
+[README_INSTALLER.md](README_INSTALLER.md).
 
 ## Start
 
