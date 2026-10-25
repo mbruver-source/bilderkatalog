@@ -15,7 +15,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command")
 
-    serve = sub.add_parser("serve", help="Weboberfläche starten (Standard)")
+    sub.add_parser("app", help="Als eigenes Programmfenster starten (Standard)")
+    serve = sub.add_parser("serve", help="Im Browser starten")
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--no-browser", action="store_true", help="Browser nicht automatisch öffnen")
 
@@ -25,7 +26,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("info", help="Datenverzeichnis und Status anzeigen")
 
     args = parser.parse_args(argv)
-    command = args.command or "serve"
+    command = args.command or "app"
+
+    if command == "app":
+        return _window()
 
     if command == "info":
         print(f"Datenverzeichnis: {config.data_dir()}")
@@ -88,6 +92,47 @@ def _serve(port: int, no_browser: bool) -> int:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
     uvicorn.run(create_app(), host="127.0.0.1", port=port, log_level="warning")
     return 0
+
+
+def _window() -> int:
+    """Eigenes Programmfenster (pywebview). Ohne pywebview: Fallback auf den Browser."""
+    try:
+        import webview
+    except ImportError:
+        print("pywebview ist nicht installiert – starte im Browser.", file=sys.stderr)
+        return _serve(8765, False)
+
+    import socket
+    import time
+
+    import uvicorn
+
+    from .api import create_app
+
+    with socket.socket() as probe:  # freien Port wählen, damit mehrere Instanzen nicht kollidieren
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(create_app(), host="127.0.0.1", port=port, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True, name="server")
+    thread.start()
+    for _ in range(100):
+        if server.started:
+            break
+        time.sleep(0.05)
+
+    webview.create_window(
+        "Bilderkatalog", f"http://127.0.0.1:{port}/",
+        width=1400, height=900, min_size=(800, 500), text_select=True,
+    )
+    webview.start()  # blockiert, bis das Fenster geschlossen wird
+    server.should_exit = True
+    thread.join(timeout=5)
+    return 0
+
+
+def main_gui() -> int:
+    """Einstieg ohne Konsolenfenster (Windows: bilderkatalog-app.exe)."""
+    return main(["app"])
 
 
 if __name__ == "__main__":

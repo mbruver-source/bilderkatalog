@@ -62,7 +62,9 @@ pip install ".[heic]"
 bilderkatalog
 ```
 
-Der Browser öffnet `http://127.0.0.1:8765/`. Danach:
+Das Programm öffnet sich in einem **eigenen Fenster**. Unter Windows nutzt es dafür den eingebauten Edge-WebView2. Schließt du das Fenster, wird das Programm beendet. Unter Windows startet `bilderkatalog-app` dasselbe Fenster ohne Konsolenfenster, das eignet sich gut für eine Desktop-Verknüpfung.
+
+Danach:
 
 1. **Ordner wählen:** Dein OneDrive-Ordner wird automatisch angezeigt. Du kannst ihn ganz oder nur einzelne Unterordner hinzufügen, oder einen beliebigen Pfad eintragen.
 2. **Aktualisieren:** Die Metadaten werden eingelesen. Auch zehntausende Bilder sind in wenigen Minuten erfasst.
@@ -72,10 +74,15 @@ Weitere Befehle:
 
 | Befehl | Wirkung |
 |---|---|
+| `bilderkatalog serve` | Im Browser statt im eigenen Fenster (`http://127.0.0.1:8765/`) |
 | `bilderkatalog serve --port 9000 --no-browser` | Server auf anderem Port, ohne Browser |
 | `bilderkatalog sync` | Gewählte Ordner einlesen, ohne Oberfläche |
 | `bilderkatalog enrich` | Details der Nur-online-Bilder nachladen, ohne Oberfläche |
 | `bilderkatalog info` | Zeigt das Datenverzeichnis |
+
+Unter macOS/Linux braucht das eigene Fenster `pip install ".[fenster]"` sowie Qt oder GTK. Ohne diese Pakete öffnet sich automatisch der Browser.
+
+Die App ist nur auf dem eigenen Rechner erreichbar (`127.0.0.1`), nicht im Netzwerk.
 
 ### Bedienung
 

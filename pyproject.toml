@@ -20,14 +20,19 @@ dependencies = [
     "reverse_geocoder>=1.5",
     "pillow>=10",
     "pywin32>=306; sys_platform == 'win32'",
+    "pywebview>=5; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 heic = ["pillow-heif>=0.16"]
+fenster = ["pywebview>=5"]  # macOS/Linux: eigenes Programmfenster (benötigt Qt oder GTK)
 
 [project.scripts]
 bilderkatalog = "bilderkatalog.__main__:main"
+
+[project.gui-scripts]
+bilderkatalog-app = "bilderkatalog.__main__:main_gui"
 
 [tool.setuptools]
 packages = ["bilderkatalog"]
