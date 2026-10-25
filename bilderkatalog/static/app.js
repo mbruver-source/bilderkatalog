@@ -192,6 +192,16 @@ function group(filter, summary, children) {
   return details;
 }
 
+// Hauptgruppe der Seitenleiste; beim Start eingeklappt, Zustand bleibt während der Sitzung erhalten
+function section(title, count, ...content) {
+  const key = "section:" + title;
+  const details = el("details", { class: "section", open: state.open.has(key) },
+    el("summary", {}, el("h4", {}, title), count != null ? el("span", { class: "count" }, String(count)) : null),
+    ...content);
+  details.addEventListener("toggle", () => details.open ? state.open.add(key) : state.open.delete(key));
+  return details;
+}
+
 function renderSidebar() {
   const f = state.facets;
   const nav = $("#sidebar");
@@ -199,9 +209,9 @@ function renderSidebar() {
   nav.append(el("ul", {}, el("li", {}, navItem("Alle Bilder", f.total, {}, "Alle Bilder"))));
 
   // Alben
-  nav.append(el("h4", {}, "Alben"));
-  nav.append(el("ul", {}, state.albums.map((a) => el("li", {}, navItem(a.name, a.n, { album: a.id }, `Album: ${a.name}`)))));
-  nav.append(el("button", { class: "link new-album", onclick: newAlbum }, "+ Neues Album"));
+  nav.append(section("Alben", state.albums.length,
+    el("ul", {}, state.albums.map((a) => el("li", {}, navItem(a.name, a.n, { album: a.id }, `Album: ${a.name}`)))),
+    el("button", { class: "link new-album", onclick: newAlbum }, "+ Neues Album")));
 
   // Zeitleiste: Jahr → Monat
   const years = new Map();
@@ -210,12 +220,11 @@ function renderSidebar() {
     years.get(row.year).push(row);
   }
   if (years.size) {
-    nav.append(el("h4", {}, "Zeitleiste"));
-    nav.append(el("ul", {}, [...years].map(([year, months]) => el("li", {},
+    nav.append(section("Zeitleiste", years.size, el("ul", {}, [...years].map(([year, months]) => el("li", {},
       group({ year }, navItem(String(year), months.reduce((s, m) => s + m.n, 0), { year }, `Jahr ${year}`),
         months.map((m) => el("li", {},
           navItem(monthName(m.month), m.n, { year, month: m.month }, `${monthName(m.month)} ${year}`)))),
-    ))));
+    )))));
   }
 
   // Orte: Land → Stadt
@@ -225,38 +234,35 @@ function renderSidebar() {
     countries.get(row.country_code).push(row);
   }
   if (countries.size) {
-    nav.append(el("h4", {}, "Orte"));
     const sorted = [...countries].sort((a, b) => countryName(a[0]).localeCompare(countryName(b[0]), "de"));
-    nav.append(el("ul", {}, sorted.map(([cc, cities]) => el("li", {},
+    nav.append(section("Orte", countries.size, el("ul", {}, sorted.map(([cc, cities]) => el("li", {},
       group({ country: cc }, navItem(countryName(cc), cities.reduce((s, c) => s + c.n, 0), { country: cc }, countryName(cc)),
         cities.map((c) => el("li", {},
           navItem(c.city || "Unbekannt", c.n, { country: cc, city: c.city }, `${c.city}, ${countryName(cc)}`)))),
-    ))));
+    )))));
   }
 
   // Ordner
   if (f.folders.length) {
-    nav.append(el("h4", {}, "Ordner"));
-    nav.append(el("ul", {}, f.folders.map((d) => el("li", {},
-      navItem(d.path.split("/").filter(Boolean).slice(-2).join(" / ") || "/", d.n, { folder: d.path }, `Ordner: ${d.path}`, { tooltip: d.path })))));
+    nav.append(section("Ordner", f.folders.length, el("ul", {}, f.folders.map((d) => el("li", {},
+      navItem(d.path.split("/").filter(Boolean).slice(-2).join(" / ") || "/", d.n, { folder: d.path }, `Ordner: ${d.path}`, { tooltip: d.path }))))));
   }
 
   // Kameras
   if (f.cameras.length) {
-    nav.append(el("h4", {}, "Kameras"));
-    nav.append(el("ul", {}, f.cameras.slice(0, 30).map((c) => el("li", {}, navItem(c.camera, c.n, { camera: c.camera }, `Kamera: ${c.camera}`)))));
+    nav.append(section("Kameras", f.cameras.length,
+      el("ul", {}, f.cameras.slice(0, 30).map((c) => el("li", {}, navItem(c.camera, c.n, { camera: c.camera }, `Kamera: ${c.camera}`))))));
   }
 
   // Sonderfilter
-  nav.append(el("h4", {}, "Prüfen"));
-  nav.append(el("ul", {},
+  nav.append(section("Prüfen", null, el("ul", {},
     el("li", {}, navItem("Ohne Aufnahmedatum", f.special.no_date, { no_date: true }, "Ohne EXIF-Aufnahmedatum",
       { tooltip: "Kein EXIF-Datum: Datum stammt aus Dateiname oder Dateizeit" })),
     el("li", {}, navItem("Ohne GPS", f.special.no_gps, { no_gps: true }, "Ohne GPS-Position")),
     el("li", {}, navItem("Videos", f.special.videos, { media: "video" }, "Videos")),
     f.special.partial ? el("li", {}, navItem("Nur online, Details fehlen", f.special.partial, { partial: true }, "Nur online – Details fehlen",
       { tooltip: "Nur das Aufnahmedatum ist bekannt. „Details nachladen“ ergänzt Ort, Kamera und Vorschau." })) : null,
-  ));
+  )));
 }
 
 async function newAlbum() {

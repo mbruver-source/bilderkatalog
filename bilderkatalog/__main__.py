@@ -130,7 +130,7 @@ def _window() -> int:
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Bilderkatalog")
     webview.create_window(
         "Bilderkatalog", f"http://127.0.0.1:{port}/",
-        width=1400, height=900, min_size=(800, 500), text_select=True,
+        width=1400, height=900, min_size=(800, 500), text_select=True, maximized=True,
     )
     webview.start(icon=str(icon))  # blockiert, bis das Fenster geschlossen wird
     server.should_exit = True
