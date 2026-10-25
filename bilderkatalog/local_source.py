@@ -29,6 +29,14 @@ BATCH = 200
 
 Progress = Callable[[str, int, int], None]  # (Text, erledigt, gesamt)
 
+# Pillow sperrt Bilder über ~179 Megapixel als mögliche "Dekompressionsbombe".
+# Hier geht es um die eigenen Fotos (z. B. Panoramen), daher keine Grenze beim
+# Öffnen; das Dekodieren für Vorschauen begrenzt MAX_DECODE_PIXELS.
+from PIL import Image as _Image  # noqa: E402
+
+_Image.MAX_IMAGE_PIXELS = None
+MAX_DECODE_PIXELS = 120_000_000  # Nicht-JPEG darüber: keine Vorschau (Arbeitsspeicher)
+
 try:  # HEIC/HEIF-Unterstützung, falls installiert
     from pillow_heif import register_heif_opener
 
@@ -193,7 +201,10 @@ def read_file(path: str, st: os.stat_result, scope_id: str) -> dict:
             meta["taken_at"] = taken.isoformat(timespec="seconds")
         level = "partial"
     else:
-        meta = read_exif(path)
+        try:
+            meta = read_exif(path)
+        except OSError:
+            meta = {}
 
     taken_at, source = meta.get("taken_at"), "exif" if meta.get("taken_at") else None
     if not taken_at:
@@ -264,7 +275,11 @@ def _upsert(conn: sqlite3.Connection, row: dict, previous: sqlite3.Row | None) -
 # -- EXIF ---------------------------------------------------------------------
 
 def read_exif(path: str) -> dict:
-    """Aufnahmedatum, Kamera, Abmessungen und GPS aus der Datei (Pillow)."""
+    """Aufnahmedatum, Kamera, Abmessungen und GPS aus der Datei (Pillow).
+
+    Liest nur die Kopfdaten, dekodiert das Bild nicht. Fehler bei einzelnen
+    Dateien führen zu leeren Metadaten, nie zum Abbruch eines ganzen Laufs.
+    """
     from PIL import Image, UnidentifiedImageError
 
     try:
@@ -273,7 +288,11 @@ def read_exif(path: str) -> dict:
             exif = im.getexif()
             sub = exif.get_ifd(0x8769)
             gps = exif.get_ifd(0x8825)
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+    except UnidentifiedImageError:  # kein von Pillow lesbares Bildformat
+        return {}
+    except OSError:
+        raise  # Datei nicht lesbar (z. B. Download fehlgeschlagen) → später erneut versuchen
+    except Exception:  # defekte Metadaten o. Ä.
         return {}
     if exif.get(0x0112) in (5, 6, 7, 8):  # Hochformat laut Orientierung
         width, height = height, width
@@ -327,17 +346,19 @@ def _dms(value, ref) -> float | None:
 # -- Vorschaubilder -----------------------------------------------------------
 
 def thumbnail_bytes(path: str, size: str) -> bytes | None:
-    from PIL import Image, ImageOps, UnidentifiedImageError
+    from PIL import Image, ImageOps
 
     try:
         with Image.open(path) as im:
-            im.draft("RGB", (THUMB_PX[size] * 2, THUMB_PX[size] * 2))  # JPEG schneller dekodieren
+            im.draft("RGB", (THUMB_PX[size] * 2, THUMB_PX[size] * 2))  # JPEG verkleinert dekodieren
+            if im.width * im.height > MAX_DECODE_PIXELS:
+                return None  # z. B. riesiges PNG/TIFF – würde zu viel Arbeitsspeicher brauchen
             im = ImageOps.exif_transpose(im)
             im.thumbnail((THUMB_PX[size], THUMB_PX[size]))
             buffer = io.BytesIO()
             im.convert("RGB").save(buffer, "JPEG", quality=82)
             return buffer.getvalue()
-    except (UnidentifiedImageError, OSError, ValueError, SyntaxError):
+    except Exception:  # Vorschau ist verzichtbar – nie den Lauf abbrechen
         return None
 
 

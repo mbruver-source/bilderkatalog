@@ -200,3 +200,40 @@ def test_enrich_one_via_api(tmp_path, library, monkeypatch):
     updated = client.post(f"/api/photos/{photo_id}/enrich", headers=hdr).json()
     assert updated["meta_level"] == "full" and updated["camera_model"] == "Cam 1"
     assert client.get(f"/api/thumb/{photo_id}").status_code == 200
+
+
+def test_huge_and_broken_images_never_abort(conn, library, monkeypatch):
+    """Riesenbilder (Panoramen) und defekte Dateien dürfen keinen Lauf abbrechen."""
+    from PIL import Image as PILImage
+
+    (library / "kaputt.jpg").write_bytes(b"kein jpeg")
+    make_jpeg(library / "panorama.jpg", "2020:05:01 12:00:00", size=(400, 100))
+    assert PILImage.MAX_IMAGE_PIXELS is None  # Pillow-Sperre ist aufgehoben
+
+    monkeypatch.setattr(local_source, "MAX_DECODE_PIXELS", 10)  # simuliert "zu groß zum Dekodieren"
+    scan(conn, library)
+    photos = rows(conn)
+    assert photos["panorama.jpg"]["taken_at"] == "2020-05-01T12:00:00"  # Metadaten trotzdem gelesen
+    assert photos["kaputt.jpg"]["date_source"] == "file"
+    assert local_source.thumbnail_bytes(str(library / "panorama.jpg"), "medium") is None
+    assert local_source.thumbnail_bytes(str(library / "kaputt.jpg"), "medium") is None
+
+
+def test_enrich_skips_unreadable_and_continues(conn, library, monkeypatch):
+    monkeypatch.setattr(winfiles, "is_online_only", lambda st: True)
+    monkeypatch.setattr(winfiles, "placeholder_date_taken", lambda p: None)
+    monkeypatch.setattr(winfiles, "free_up_space", lambda p: True)
+    scan(conn, library)
+    real = local_source.read_exif
+
+    def flaky(path):
+        if path.endswith("IMG_0001.jpg"):
+            raise OSError(380, "Der Clouddateianbieter wird nicht ausgeführt")
+        return real(path)
+
+    monkeypatch.setattr(local_source, "read_exif", flaky)
+    result = local_source.enrich(conn, workers=1)
+    assert result["processed"] == 3 and len(result["errors"]) == 1
+    levels = {name: r["meta_level"] for name, r in rows(conn).items()}
+    assert levels["IMG_0001.jpg"] == "partial"  # wird beim nächsten Mal erneut versucht
+    assert levels["IMG_0002.jpg"] == "full"
