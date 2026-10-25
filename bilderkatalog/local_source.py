@@ -37,7 +37,7 @@ except ImportError:
     pass
 
 
-class LowDiskSpace(RuntimeError):
+class LowDiskSpace(ValueError):
     pass
 
 
@@ -354,35 +354,25 @@ def enrich(
     progress: Progress | None = None,
     cancelled: Callable[[], bool] = lambda: False,
     workers: int = 4,
+    ids: list[str] | None = None,
 ) -> dict:
-    """Lädt "nur online"-Bilder einzeln, liest Metadaten, gibt Speicher wieder frei."""
+    """Lädt "nur online"-Bilder einzeln, liest Metadaten, gibt Speicher wieder frei.
+
+    Ohne `ids` alle noch unvollständigen Bilder, sonst nur die angegebenen.
+    """
     rows = conn.execute(
         "SELECT id, local_path, size FROM photo WHERE source = 'local' AND meta_level = 'partial' "
         "AND deleted = 0 ORDER BY taken_at DESC"
     ).fetchall()
+    if ids is not None:
+        wanted = set(ids)
+        rows = [r for r in rows if r["id"] in wanted]
     total, done, errors = len(rows), 0, []
 
     def work(row: sqlite3.Row) -> tuple[str, dict | None, str | None]:
         if cancelled():
             return row["id"], None, None
-        path = row["local_path"]
-        try:
-            if shutil.disk_usage(os.path.dirname(path)).free < MIN_FREE_BYTES + (row["size"] or 0):
-                raise LowDiskSpace("Zu wenig freier Speicher – Nachladen angehalten.")
-            was_online = winfiles.is_online_only(os.stat(path))
-            try:
-                meta = read_exif(path)  # löst den Download aus
-                data = thumbnail_bytes(path, "medium")
-                if data:
-                    thumb_cache_file(row["id"], "medium").write_bytes(data)
-            finally:
-                if was_online:
-                    winfiles.free_up_space(Path(path))
-            return row["id"], meta, None
-        except LowDiskSpace:
-            raise
-        except OSError as err:
-            return row["id"], None, f"{os.path.basename(path)}: {err.strerror or err}"
+        return _enrich_file(row)
 
     with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="enrich") as pool:
         for start in range(0, total, 30):
@@ -396,8 +386,44 @@ def enrich(
                 done += 1
             conn.commit()
             if progress:
-                progress("Lade Details (Speicher wird danach wieder freigegeben) …", done, total)
+                progress("Lade Details und Vorschau (Speicher wird danach wieder freigegeben) …", done, total)
     return {"processed": done, "errors": errors}
+
+
+def enrich_one(conn: sqlite3.Connection, photo_id: str) -> None:
+    """Ein einzelnes Bild sofort nachladen (Großansicht)."""
+    row = conn.execute(
+        "SELECT id, local_path, size FROM photo WHERE id = ? AND source = 'local' AND meta_level = 'partial'",
+        (photo_id,),
+    ).fetchone()
+    if row is None:
+        return
+    _, meta, error = _enrich_file(row)
+    if error:
+        raise ValueError(error)
+    _apply_enriched(conn, photo_id, meta)
+    conn.commit()
+
+
+def _enrich_file(row: sqlite3.Row) -> tuple[str, dict | None, str | None]:
+    path = row["local_path"]
+    try:
+        if shutil.disk_usage(os.path.dirname(path)).free < MIN_FREE_BYTES + (row["size"] or 0):
+            raise LowDiskSpace("Zu wenig freier Speicher – Nachladen angehalten.")
+        was_online = winfiles.is_online_only(os.stat(path))
+        try:
+            meta = read_exif(path)  # löst den Download aus
+            data = thumbnail_bytes(path, "medium")
+            if data:
+                thumb_cache_file(row["id"], "medium").write_bytes(data)
+        finally:
+            if was_online:
+                winfiles.free_up_space(Path(path))
+        return row["id"], meta, None
+    except LowDiskSpace:
+        raise
+    except OSError as err:
+        return row["id"], None, f"{os.path.basename(path)}: {err.strerror or err}"
 
 
 def _apply_enriched(conn: sqlite3.Connection, photo_id: str, meta: dict) -> None:

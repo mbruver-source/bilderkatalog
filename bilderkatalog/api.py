@@ -273,9 +273,11 @@ def create_app(state: State | None = None) -> FastAPI:
         return state.sync_job.to_dict()
 
     @app.post("/api/enrich")
-    def start_enrich():
+    def start_enrich(body: SelectionIn | None = None, conn=Conn):
+        """Ohne Angabe alle Nur-online-Bilder, sonst nur Auswahl (ids) bzw. Ansicht (filter)."""
         if state.sync_job.running:
             raise HTTPException(409, "Während des Einlesens nicht möglich.")
+        ids = _selection(conn, body) if body and (body.ids is not None or body.filter is not None) else None
 
         def run(job: Job):
             conn = state.connect()
@@ -284,6 +286,7 @@ def create_app(state: State | None = None) -> FastAPI:
                     conn,
                     progress=lambda text, done, n: job.update(text, done, n),
                     cancelled=job.cancelled,
+                    ids=ids,
                 )
                 job.update("Orte werden bestimmt …")
                 geocode.geocode_pending(conn)
@@ -317,6 +320,12 @@ def create_app(state: State | None = None) -> FastAPI:
         if not result:
             raise HTTPException(404)
         return result
+
+    @app.post("/api/photos/{photo_id}/enrich")
+    def enrich_photo(photo_id: str, conn=Conn):
+        local_source.enrich_one(conn, photo_id)
+        geocode.geocode_pending(conn)
+        return queries.get_photo(conn, photo_id)
 
     @app.post("/api/photos/{photo_id}/reveal")
     def reveal(photo_id: str, conn=Conn):

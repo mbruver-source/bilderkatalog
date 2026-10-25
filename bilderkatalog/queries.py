@@ -110,12 +110,14 @@ def list_photos(
 ) -> dict:
     where, params = flt.where()
     order = SORTS.get(sort, SORTS["date_desc"])
-    total = conn.execute(f"SELECT COUNT(*) FROM photo p WHERE {where}", params).fetchone()[0]
+    total, partial = conn.execute(
+        f"SELECT COUNT(*), COALESCE(SUM(p.meta_level = 'partial'), 0) FROM photo p WHERE {where}", params
+    ).fetchone()
     rows = conn.execute(
         f"SELECT {PHOTO_COLUMNS} FROM photo p WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
         [*params, int(limit), int(offset)],
     ).fetchall()
-    return {"total": total, "items": [dict(r) for r in rows]}
+    return {"total": total, "partial": partial, "items": [dict(r) for r in rows]}
 
 
 def photo_ids(conn: sqlite3.Connection, flt: Filter) -> list[str]:

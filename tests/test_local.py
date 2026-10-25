@@ -162,3 +162,41 @@ def test_migration_from_schema_v1(tmp_path):
     assert tuple(row) == ("graph", "full")
     assert conn.execute("PRAGMA user_version").fetchone()[0] == db.SCHEMA_VERSION
     conn.close()
+
+
+def test_enrich_only_selected_ids(conn, library, monkeypatch):
+    monkeypatch.setattr(winfiles, "is_online_only", lambda st: True)
+    monkeypatch.setattr(winfiles, "placeholder_date_taken", lambda p: None)
+    monkeypatch.setattr(winfiles, "free_up_space", lambda p: True)
+    scan(conn, library)
+    target = rows(conn)["IMG_0002.jpg"]["id"]
+
+    result = local_source.enrich(conn, workers=1, ids=[target])
+
+    assert result["processed"] == 1
+    levels = {name: r["meta_level"] for name, r in rows(conn).items()}
+    assert levels["IMG_0002.jpg"] == "full" and levels["IMG_0001.jpg"] == "partial"
+
+
+def test_enrich_one_via_api(tmp_path, library, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from bilderkatalog.api import State, create_app
+
+    monkeypatch.setattr(winfiles, "is_online_only", lambda st: True)
+    monkeypatch.setattr(winfiles, "placeholder_date_taken", lambda p: None)
+    monkeypatch.setattr(winfiles, "free_up_space", lambda p: True)
+    state = State(tmp_path / "api.db")
+    conn = state.connect()
+    scan(conn, library)
+    photo_id = rows(conn)["IMG_0001.jpg"]["id"]
+    conn.close()
+    client = TestClient(create_app(state))
+    hdr = {"X-Bilderkatalog": "1"}
+
+    view = client.get("/api/photos", params={"folder": "/Fotos/Urlaub"}).json()
+    assert view["partial"] == 2
+    assert client.get(f"/api/thumb/{photo_id}").status_code == 404  # nur online → keine Vorschau
+    updated = client.post(f"/api/photos/{photo_id}/enrich", headers=hdr).json()
+    assert updated["meta_level"] == "full" and updated["camera_model"] == "Cam 1"
+    assert client.get(f"/api/thumb/{photo_id}").status_code == 200

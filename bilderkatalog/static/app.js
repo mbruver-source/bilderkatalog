@@ -145,21 +145,27 @@ $("#logout-btn").addEventListener("click", async () => {
 
 $("#enrich-btn").addEventListener("click", () => {
   const p = state.status.partial;
-  $("#enrich-info").textContent =
+  openEnrich(null,
     `${p.count.toLocaleString("de-DE")} Bilder liegen nur online (zusammen ${formatSize(p.bytes)}). ` +
-    "Von ihnen ist bisher nur das Aufnahmedatum bekannt.";
+    "Von ihnen ist bisher nur das Aufnahmedatum bekannt.");
+});
+
+// selection: null = alle, sonst { ids } oder { filter }
+function openEnrich(selection, info) {
+  $("#enrich-info").textContent = info;
   const dlg = $("#enrich-dlg");
   dlg.onclose = async () => {
     if (dlg.returnValue !== "ok") return;
     try {
-      await api("/api/enrich", { method: "POST" });
+      await api("/api/enrich", { method: "POST", body: selection ?? undefined });
+      clearSelection();
       startPolling();
     } catch (err) {
       toast(err.message);
     }
   };
   dlg.showModal();
-});
+}
 
 // ---------- Seitenleiste ----------
 
@@ -293,6 +299,7 @@ async function reload() {
   $("#grid").replaceChildren();
   $("#events").hidden = true;
   $("#grid").hidden = false;
+  $("#view-enrich-btn").hidden = true;
   $("#view-title").textContent = state.title;
   $("#sel-remove").hidden = state.filter.album === undefined;
   await loadMore();
@@ -317,6 +324,9 @@ async function loadMore() {
     state.complete = state.items.length >= data.total || !data.items.length;
     renderTiles(start);
     $("#view-count").textContent = `${data.total.toLocaleString("de-DE")} Dateien`;
+    state.viewPartial = data.partial;
+    $("#view-enrich-btn").hidden = !data.partial;
+    $("#view-enrich-btn").textContent = `Vorschau nachladen (${data.partial.toLocaleString("de-DE")})`;
     $("#empty").hidden = data.total > 0;
   } finally {
     if (generation === state.generation) state.loading = false;
@@ -426,6 +436,14 @@ $("#sel-remove").addEventListener("click", async () => {
 });
 
 $("#view-album-btn").addEventListener("click", () => chooseAlbum({ filter: currentQuery() }, state.title));
+$("#view-enrich-btn").addEventListener("click", () => openEnrich({ filter: currentQuery() },
+  `${state.viewPartial.toLocaleString("de-DE")} Bilder in „${state.title}“ liegen nur online. Ihre Vorschau und Details werden nachgeladen.`));
+$("#sel-enrich").addEventListener("click", () => {
+  const ids = [...state.selected];
+  const partial = state.items.filter((i) => state.selected.has(i.id) && i.meta_level === "partial").length;
+  if (!partial) return toast("Für die ausgewählten Bilder ist die Vorschau schon vorhanden.");
+  openEnrich({ ids }, `${partial} der ausgewählten Bilder liegen nur online. Ihre Vorschau und Details werden nachgeladen.`);
+});
 $("#view-zip-btn").addEventListener("click", () => openExport({ filter: currentQuery() }, `${state.total} Dateien dieser Ansicht`, state.title));
 
 document.addEventListener("keydown", (event) => {
@@ -548,7 +566,7 @@ async function renderLightbox() {
     ["Datumsquelle", sourceLabel],
     ["Ort", detail.country_code ? place : "–"],
     ["GPS", detail.lat != null ? `${detail.lat.toFixed(5)}, ${detail.lon.toFixed(5)}` : "–"],
-    ["Kamera", (detail.camera_model?.startsWith(detail.camera_make || " ") ? detail.camera_model
+    ["Kamera", (detail.camera_model?.startsWith(detail.camera_make || "\u0000") ? detail.camera_model
       : [detail.camera_make, detail.camera_model].filter(Boolean).join(" ")) || "–"],
     ["Größe", `${detail.width && detail.height ? `${detail.width} × ${detail.height} · ` : ""}${formatSize(detail.size)}`],
     ["Ordner", detail.parent_path || "–"],
@@ -556,12 +574,32 @@ async function renderLightbox() {
   ];
   $("#lb-meta").replaceChildren(
     el("dl", {}, rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
-    detail.meta_level === "partial" ? el("p", {}, "Nur online: Ort, Kamera und Vorschau fehlen noch („Details nachladen“).") : null,
+    detail.meta_level === "partial" ? el("p", {}, "Nur online: Ort, Kamera und Vorschau fehlen noch. ",
+      el("button", { onclick: (e) => enrichOne(item, e.currentTarget) }, "Vorschau laden")) : null,
     detail.source === "local"
       ? el("p", {}, el("button", { onclick: () => api(`/api/photos/${encodeURIComponent(item.id)}/reveal`, { method: "POST" }).catch((e) => toast(e.message)) }, "Im Explorer zeigen"))
       : detail.web_url ? el("a", { href: detail.web_url, target: "_blank", rel: "noopener" }, "In OneDrive öffnen ↗") : null,
     el("p", {}, el("button", { onclick: () => { $("#lightbox").close(); chooseAlbum({ ids: [item.id] }); } }, "Zu Album …")),
   );
+}
+
+async function enrichOne(item, button) {
+  button.disabled = true;
+  button.textContent = "Lädt …";
+  try {
+    const updated = await api(`/api/photos/${encodeURIComponent(item.id)}/enrich`, { method: "POST" });
+    Object.assign(item, updated);
+    // Kachel im Raster aktualisieren
+    const index = state.items.indexOf(item);
+    document.querySelector(`.tile[data-index="${index}"]`)?.replaceWith(tile(item, index));
+    if (state.items[state.lightboxIndex] === item) renderLightbox();
+    loadSidebar();
+    applyStatus(await api("/api/status"));
+  } catch (err) {
+    button.disabled = false;
+    button.textContent = "Vorschau laden";
+    toast(err.message);
+  }
 }
 
 function stepLightbox(delta) {

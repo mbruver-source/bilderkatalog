@@ -29,6 +29,12 @@ Mit „Dateien bei Bedarf“ liegen viele Bilder nur als Platzhalter auf dem PC.
 1. **Einlesen:** Das Programm öffnet die Datei nicht und lädt nichts herunter. Das **Aufnahmedatum** steht trotzdem sofort zur Verfügung, weil Windows es im Platzhalter speichert. Ort, Kamera und Vorschau fehlen zunächst. In der Seitenleiste erscheinen diese Bilder unter „Nur online, Details fehlen“.
 2. **Details nachladen** (Schaltfläche oben, optional): Jedes Bild wird **einzeln** heruntergeladen. Das Programm liest GPS, Kamera und Abmessungen aus, legt ein kleines Vorschaubild an und **gibt den Speicher sofort wieder frei**, genau wie „Speicherplatz freigeben“ im Explorer. Das dauert etwa 1 Sekunde pro Bild, läuft im Hintergrund und lässt sich jederzeit abbrechen und später fortsetzen. Bei weniger als 2 GB freiem Speicher hält das Nachladen an.
 
+Statt alles auf einmal kannst du auch gezielt nachladen:
+
+- **Vorschau nachladen (Anzahl)** in der Ansicht lädt nur die Bilder des aktuellen Filters, etwa ein Album, einen Monat oder einen Ort.
+- **Vorschau nachladen** in der Auswahlleiste lädt nur die markierten Bilder.
+- **Vorschau laden** in der Großansicht lädt sofort das eine Bild.
+
 Bilder, die schon lokal vorhanden sind, werden direkt vollständig gelesen.
 
 ### Weitere Details
