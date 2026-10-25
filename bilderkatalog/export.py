@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 import zipfile
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
+from . import winfiles
 from .graph_client import GraphClient, GraphError
 
 STRUCTURES = ("flat", "year_month", "folder")
@@ -23,7 +26,7 @@ def safe_filename(name: str, fallback: str = "Export") -> str:
 
 def export_zip(
     conn: sqlite3.Connection,
-    client: GraphClient,
+    client: GraphClient | None,
     photo_ids: list[str],
     target_dir: Path,
     name: str,
@@ -59,11 +62,11 @@ def export_zip(
                 info = zipfile.ZipInfo(arcname, date_time=_zip_time(row["taken_at"]))
                 info.compress_type = zipfile.ZIP_STORED
                 try:
-                    with client.content(pid) as chunks, zf.open(info, "w", force_zip64=True) as dest:
+                    with _open_source(row, client) as chunks, zf.open(info, "w", force_zip64=True) as dest:
                         for chunk in chunks:
                             dest.write(chunk)
                     written += 1
-                except GraphError as err:
+                except (GraphError, OSError) as err:
                     errors.append(f"{row['name']}: {err}")
         partial.replace(target)
     except BaseException:
@@ -77,11 +80,30 @@ def _fetch_rows(conn: sqlite3.Connection, ids: list[str]) -> list[sqlite3.Row]:
     for start in range(0, len(ids), 500):
         chunk = ids[start:start + 500]
         rows += conn.execute(
-            f"SELECT id, name, parent_path, taken_at, year, month FROM photo "
+            f"SELECT id, source, local_path, name, parent_path, taken_at, year, month FROM photo "
             f"WHERE deleted = 0 AND id IN ({','.join('?' * len(chunk))})",
             chunk,
         ).fetchall()
     return rows
+
+
+@contextmanager
+def _open_source(row: sqlite3.Row, client: GraphClient | None) -> Iterator[Iterator[bytes]]:
+    """Inhalt einer Datei: lokal direkt (danach ggf. Speicher wieder freigeben) oder per Graph."""
+    if row["source"] == "local":
+        path = row["local_path"]
+        was_online = winfiles.is_online_only(os.stat(path))
+        try:
+            with open(path, "rb") as handle:
+                yield iter(lambda: handle.read(1024 * 256), b"")
+        finally:
+            if was_online:
+                winfiles.free_up_space(Path(path))
+        return
+    if client is None:
+        raise GraphError(401, "Für Online-Bilder ist eine Microsoft-Anmeldung nötig.")
+    with client.content(row["id"]) as chunks:
+        yield chunks
 
 
 def _arcname(row: sqlite3.Row, structure: str) -> str:

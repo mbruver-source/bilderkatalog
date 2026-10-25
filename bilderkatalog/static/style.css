@@ -61,12 +61,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 label { display: grid; gap: 4px; margin-bottom: 12px; color: var(--muted); }
 label input, label select { color: var(--text); width: 100%; }
 
-/* Start-Bildschirme */
-.screen { min-height: 100%; display: grid; place-items: center; padding: 16px; }
-.card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-  padding: 28px; max-width: 480px; width: 100%;
-}
 
 /* Kopfzeile */
 .topbar {
@@ -124,7 +118,11 @@ main { flex: 1; min-width: 0; padding: 12px 16px 96px; }
   position: relative; aspect-ratio: 1; background: var(--hover); border-radius: 6px; overflow: hidden; cursor: zoom-in;
 }
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tile .noimg { position: absolute; inset: 0; display: grid; place-items: center; padding: 8px; text-align: center; color: var(--muted); font-size: 12px; word-break: break-all; }
+.tile .noimg {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  padding: 8px; text-align: center; color: var(--muted); font-size: 11px; word-break: break-all;
+}
+.tile .noimg .cloud { font-size: 22px; line-height: 1; }
 .tile .check {
   position: absolute; top: 6px; left: 6px; width: 22px; height: 22px; border-radius: 50%;
   border: 2px solid #fff; background: #0005; opacity: 0; transition: opacity .1s; cursor: pointer;
@@ -171,6 +169,10 @@ dialog::backdrop { background: #0007; }
 .tree .toggle { width: 22px; padding: 0; border: none; background: none; color: var(--muted); }
 .tree .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree .row button.add { padding: 2px 8px; font-size: 12px; }
+dialog h4 { margin: 16px 0 4px; font-size: 13px; }
+.path-form { display: flex; gap: 8px; }
+.path-form input { flex: 1; min-width: 0; }
+.scope-list .kind { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-right: 6px; }
 
 /* Großansicht */
 .lightbox {

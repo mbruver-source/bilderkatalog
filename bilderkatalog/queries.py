@@ -15,8 +15,14 @@ SORTS = {
     "size": "size DESC, name",
 }
 
+# Kameraname ohne doppelten Hersteller ("Canon" + "Canon EOS 600D" → "Canon EOS 600D")
+CAMERA = (
+    "CASE WHEN {p}camera_model LIKE {p}camera_make || '%' THEN {p}camera_model "
+    "ELSE TRIM(COALESCE({p}camera_make, '') || ' ' || COALESCE({p}camera_model, '')) END"
+)
+
 PHOTO_COLUMNS = (
-    "id, name, parent_path, size, mime, is_video, taken_at, date_source, year, month, "
+    "id, source, online_only, meta_level, local_path, name, parent_path, size, mime, is_video, taken_at, date_source, year, month, "
     "camera_make, camera_model, width, height, lat, lon, city, region, country_code, web_url"
 )
 
@@ -36,6 +42,7 @@ class Filter:
     media: str | None = None       # 'image' | 'video'
     no_date: bool = False          # nur Bilder ohne EXIF-Aufnahmedatum
     no_gps: bool = False
+    partial: bool = False          # nur Datum bekannt (Details noch nicht nachgeladen)
 
     @classmethod
     def from_dict(cls, data: dict) -> "Filter":
@@ -76,7 +83,7 @@ class Filter:
             clauses.append("p.id IN (SELECT photo_id FROM album_photo WHERE album_id = ?)")
             params.append(int(self.album))
         if self.camera:
-            clauses.append("TRIM(COALESCE(p.camera_make, '') || ' ' || COALESCE(p.camera_model, '')) = ?")
+            clauses.append(f"{CAMERA.format(p='p.')} = ?")
             params.append(self.camera)
         if self.q:
             clauses.append("p.name LIKE ? ESCAPE '\\'")
@@ -89,6 +96,8 @@ class Filter:
             clauses.append("(p.date_source IS NULL OR p.date_source <> 'exif')")
         if self.no_gps:
             clauses.append("p.lat IS NULL")
+        if self.partial:
+            clauses.append("p.meta_level = 'partial'")
         return " AND ".join(clauses), params
 
 
@@ -146,13 +155,14 @@ def facets(conn: sqlite3.Connection) -> dict:
             "GROUP BY parent_path ORDER BY parent_path COLLATE NOCASE"
         ),
         "cameras": q(
-            "SELECT TRIM(COALESCE(camera_make, '') || ' ' || COALESCE(camera_model, '')) AS camera, COUNT(*) AS n "
+            f"SELECT {CAMERA.format(p='')} AS camera, COUNT(*) AS n "
             "FROM photo WHERE deleted = 0 AND (camera_make IS NOT NULL OR camera_model IS NOT NULL) "
             "GROUP BY camera ORDER BY n DESC"
         ),
         "special": dict(conn.execute(
             "SELECT COALESCE(SUM(date_source IS NULL OR date_source <> 'exif'), 0) AS no_date, "
-            "COALESCE(SUM(lat IS NULL), 0) AS no_gps, COALESCE(SUM(is_video), 0) AS videos "
+            "COALESCE(SUM(lat IS NULL), 0) AS no_gps, COALESCE(SUM(is_video), 0) AS videos, "
+            "COALESCE(SUM(meta_level = 'partial'), 0) AS partial "
             "FROM photo WHERE deleted = 0"
         ).fetchone()),
     }

@@ -7,11 +7,17 @@ from pathlib import Path
 
 from . import config
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS photo (
-    id            TEXT PRIMARY KEY,      -- OneDrive-Item-ID
+    id            TEXT PRIMARY KEY,      -- OneDrive-Item-ID bzw. "L:<Laufwerk>:<Datei-Index>"
+    source        TEXT NOT NULL DEFAULT 'graph',  -- 'graph' | 'local'
+    local_path    TEXT,                  -- nur lokal: absoluter Pfad
+    mtime         REAL,                  -- nur lokal: Änderungszeit
+    online_only   INTEGER NOT NULL DEFAULT 0,
+    meta_level    TEXT NOT NULL DEFAULT 'full',  -- 'full' | 'partial' (nur Datum bekannt)
+    scope_id      TEXT,
     name          TEXT NOT NULL,
     parent_id     TEXT,
     parent_path   TEXT,
@@ -41,6 +47,8 @@ CREATE INDEX IF NOT EXISTS ix_photo_ym      ON photo(year, month);
 CREATE INDEX IF NOT EXISTS ix_photo_place   ON photo(country_code, city);
 CREATE INDEX IF NOT EXISTS ix_photo_parent  ON photo(parent_id);
 CREATE INDEX IF NOT EXISTS ix_photo_path    ON photo(parent_path);
+CREATE INDEX IF NOT EXISTS ix_photo_local   ON photo(local_path);
+CREATE INDEX IF NOT EXISTS ix_photo_meta    ON photo(source, meta_level);
 
 CREATE TABLE IF NOT EXISTS folder (
     id          TEXT PRIMARY KEY,
@@ -52,8 +60,9 @@ CREATE TABLE IF NOT EXISTS folder (
 CREATE INDEX IF NOT EXISTS ix_folder_parent ON folder(parent_id);
 
 CREATE TABLE IF NOT EXISTS scope (
-    item_id     TEXT PRIMARY KEY,
-    path        TEXT NOT NULL,
+    item_id     TEXT PRIMARY KEY,         -- Graph-Item-ID bzw. lokaler Ordnerpfad
+    kind        TEXT NOT NULL DEFAULT 'graph',  -- 'graph' | 'local'
+    path        TEXT NOT NULL,            -- Anzeigepfad
     delta_link  TEXT,
     last_sync   TEXT
 );
@@ -86,7 +95,27 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     return conn
 
 
+MIGRATIONS = {
+    2: [
+        "ALTER TABLE photo ADD COLUMN source TEXT NOT NULL DEFAULT 'graph'",
+        "ALTER TABLE photo ADD COLUMN local_path TEXT",
+        "ALTER TABLE photo ADD COLUMN mtime REAL",
+        "ALTER TABLE photo ADD COLUMN online_only INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE photo ADD COLUMN meta_level TEXT NOT NULL DEFAULT 'full'",
+        "ALTER TABLE photo ADD COLUMN scope_id TEXT",
+        "ALTER TABLE scope ADD COLUMN kind TEXT NOT NULL DEFAULT 'graph'",
+    ],
+}
+
+
 def init(conn: sqlite3.Connection) -> None:
+    version = conn.execute("PRAGMA user_version").fetchone()[0]
+    has_tables = conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'photo'").fetchone()
+    if has_tables:
+        for target in sorted(MIGRATIONS):
+            if version < target:
+                for statement in MIGRATIONS[target]:
+                    conn.execute(statement)
     conn.executescript(SCHEMA)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()

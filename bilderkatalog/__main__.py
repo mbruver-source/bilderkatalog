@@ -19,8 +19,9 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--no-browser", action="store_true", help="Browser nicht automatisch öffnen")
 
-    sub.add_parser("login", help="Am Microsoft-Konto anmelden")
-    sub.add_parser("sync", help="Alle gewählten Ordner neu einlesen")
+    sub.add_parser("login", help="Optional: am Microsoft-Konto anmelden (Online-Zugang)")
+    sub.add_parser("sync", help="Alle gewählten Ordner einlesen")
+    sub.add_parser("enrich", help="Details der Nur-online-Bilder nachladen (Speicher wird wieder freigegeben)")
     sub.add_parser("info", help="Datenverzeichnis und Status anzeigen")
 
     args = parser.parse_args(argv)
@@ -28,34 +29,49 @@ def main(argv: list[str] | None = None) -> int:
 
     if command == "info":
         print(f"Datenverzeichnis: {config.data_dir()}")
-        print(f"Client-ID eingerichtet: {'ja' if config.client_id() else 'nein'}")
+        print(f"Online-Zugang eingerichtet: {'ja' if config.client_id() else 'nein (optional)'}")
         return 0
 
     if command == "serve":
         return _serve(getattr(args, "port", 8765), getattr(args, "no_browser", False))
 
-    from .auth import Auth
-
-    if not config.client_id():
-        print("Keine Client-ID eingerichtet. Siehe README, Abschnitt 'Einrichtung'.", file=sys.stderr)
-        return 1
-    auth = Auth(config.client_id())
-
     if command == "login":
-        print(f"Angemeldet als {auth.login_interactive()}")
+        from .auth import Auth
+
+        if not config.client_id():
+            print("Keine Client-ID eingerichtet. Siehe README, Abschnitt 'Optional: Online-Zugang'.", file=sys.stderr)
+            return 1
+        print(f"Angemeldet als {Auth(config.client_id()).login_interactive()}")
+        return 0
+
+    from . import local_source
+
+    conn = db.connect()
+    db.init(conn)
+    show = lambda text, done, total: print(f"\r{text} {done}/{total or '?'}", end="", flush=True)  # noqa: E731
+
+    if command == "enrich":
+        result = local_source.enrich(conn, progress=show)
+        print(f"\nDetails für {result['processed']} Bilder geladen, {geocode.geocode_pending(conn)} verortet.")
+        for error in result["errors"]:
+            print("  Fehler:", error)
         return 0
 
     if command == "sync":
-        from .graph_client import GraphClient
-
-        conn = db.connect()
-        db.init(conn)
-        if not conn.execute("SELECT 1 FROM scope").fetchone():
+        scopes = conn.execute("SELECT item_id, kind FROM scope").fetchall()
+        if not scopes:
             print("Noch keine Ordner gewählt – bitte in der Weboberfläche auswählen.", file=sys.stderr)
             return 1
-        client = GraphClient(auth.token)
-        count = sync.sync_all(conn, client, lambda _id, n: print(f"\r{n} Medien …", end="", flush=True))
-        print(f"\n{count} Bilder/Videos verarbeitet, {geocode.geocode_pending(conn)} verortet.")
+        for scope in scopes:
+            if scope["kind"] == "local":
+                local_source.scan_scope(conn, scope["item_id"], progress=show)
+        if any(s["kind"] == "graph" for s in scopes) and config.client_id():
+            from .auth import Auth
+            from .graph_client import GraphClient
+
+            client = GraphClient(Auth(config.client_id()).token)
+            sync.sync_all(conn, client, lambda _id, n: print(f"\r{n} Medien online …", end="", flush=True))
+        print(f"\nFertig, {geocode.geocode_pending(conn)} Bilder verortet.")
         return 0
     return 0
 

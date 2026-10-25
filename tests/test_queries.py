@@ -59,7 +59,7 @@ def test_facets(conn):
     f = queries.facets(conn)
     assert {(y["year"], y["month"], y["n"]) for y in f["years"]} == {(2021, 1, 1), (2020, 6, 2), (2019, 3, 1)}
     assert {(p["country_code"], p["city"], p["n"]) for p in f["places"]} == {("FR", "Paris", 2), ("DE", "Berlin", 1)}
-    assert f["special"] == {"no_date": 2, "no_gps": 2, "videos": 1}
+    assert f["special"] == {"no_date": 2, "no_gps": 2, "videos": 1, "partial": 0}
 
 
 def test_album_filter_and_crud(conn):

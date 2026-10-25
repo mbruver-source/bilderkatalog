@@ -51,13 +51,18 @@ def add_scope(conn: sqlite3.Connection, client: GraphClient, item_id: str) -> di
 
 def remove_scope(conn: sqlite3.Connection, item_id: str) -> None:
     """Entfernt einen Bereich samt Bildern, die von keinem anderen Bereich abgedeckt sind."""
-    row = conn.execute("SELECT path FROM scope WHERE item_id = ?", (item_id,)).fetchone()
+    row = conn.execute("SELECT path, kind FROM scope WHERE item_id = ?", (item_id,)).fetchone()
     if not row:
         return
     conn.execute("DELETE FROM scope WHERE item_id = ?", (item_id,))
-    remaining = [r["path"] for r in conn.execute("SELECT path FROM scope")]
+    if row["kind"] == "local":
+        conn.execute("DELETE FROM photo WHERE source = 'local' AND scope_id = ?", (item_id,))
+        conn.commit()
+        return
+    remaining = [r["path"] for r in conn.execute("SELECT path FROM scope WHERE kind = 'graph'")]
     photos = conn.execute(
-        "SELECT id, parent_path FROM photo WHERE parent_path = ? OR parent_path LIKE ? ESCAPE '\\'",
+        "SELECT id, parent_path FROM photo WHERE source = 'graph' AND "
+        "(parent_path = ? OR parent_path LIKE ? ESCAPE '\\')",
         (row["path"], _like_prefix(row["path"])),
     ).fetchall()
     orphaned = [p["id"] for p in photos if not any(_under(p["parent_path"], s) for s in remaining)]
@@ -80,7 +85,7 @@ def _like_prefix(path: str) -> str:
 
 def sync_all(conn: sqlite3.Connection, client: GraphClient, progress: Progress | None = None) -> int:
     total = 0
-    for scope in conn.execute("SELECT item_id, path, delta_link FROM scope").fetchall():
+    for scope in conn.execute("SELECT item_id, path, delta_link FROM scope WHERE kind = 'graph'").fetchall():
         total += sync_scope(conn, client, scope["item_id"], scope["delta_link"], progress)
     return total
 

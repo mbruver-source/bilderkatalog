@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import re
+import os
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import albums, config, db, export, geocode, queries, sync
+from . import albums, config, db, export, geocode, local_source, queries, sync, winfiles
 from .auth import Auth, AuthError
 from .graph_client import GraphClient, GraphError, NotLoggedIn
 from .jobs import Job
@@ -24,7 +24,7 @@ CSRF_HEADER = "x-bilderkatalog"
 
 
 class State:
-    """Gemeinsamer Zustand: Anmeldung, Graph-Client und Hintergrundaufgaben."""
+    """Gemeinsamer Zustand: optionale Anmeldung, Graph-Client und Hintergrundaufgaben."""
 
     def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or config.db_path()
@@ -32,6 +32,7 @@ class State:
         self._auth: Auth | None = None
         self._client: GraphClient | None = None
         self.sync_job = Job("sync")
+        self.enrich_job = Job("enrich")
         self.export_job = Job("export")
         self.login_job = Job("login")
         conn = db.connect(self.db_path)
@@ -53,16 +54,26 @@ class State:
 
     @property
     def client(self) -> GraphClient:
+        """Graph-Client; nur für den optionalen Online-Zugang."""
         auth = self.auth
         if auth is None:
-            raise HTTPException(409, "Keine Client-ID eingerichtet.")
+            raise HTTPException(409, "Online-Zugang ist nicht eingerichtet.")
         with self._lock:
             if self._client is None:
                 self._client = GraphClient(auth.token)
             return self._client
 
+    def optional_client(self) -> GraphClient | None:
+        return self.client if self.auth and self.auth.account_name() else None
+
     def connect(self) -> sqlite3.Connection:
         return db.connect(self.db_path)
+
+    def busy(self) -> str | None:
+        for job in (self.sync_job, self.enrich_job):
+            if job.running:
+                return job.kind
+        return None
 
 
 # -- Eingabemodelle -----------------------------------------------------------
@@ -72,7 +83,9 @@ class SetupIn(BaseModel):
 
 
 class ScopeIn(BaseModel):
-    item_id: str
+    kind: str = "local"         # 'local' | 'graph'
+    path: str | None = None     # lokal: Ordnerpfad
+    item_id: str | None = None  # graph: OneDrive-Item-ID oder "root"
 
 
 class AlbumIn(BaseModel):
@@ -108,7 +121,7 @@ def create_app(state: State | None = None) -> FastAPI:
 
     @app.exception_handler(NotLoggedIn)
     async def not_logged_in(_request, _err):
-        return JSONResponse({"detail": "Nicht angemeldet."}, status_code=401)
+        return JSONResponse({"detail": "Nicht bei Microsoft angemeldet."}, status_code=401)
 
     @app.exception_handler(GraphError)
     async def graph_error(_request, err: GraphError):
@@ -127,17 +140,24 @@ def create_app(state: State | None = None) -> FastAPI:
 
     Conn = Depends(get_conn)
 
-    # -- Status, Einrichtung, Anmeldung -------------------------------------
+    # -- Status und optionaler Online-Zugang -----------------------------------
 
     @app.get("/api/status")
     def status(conn=Conn):
         auth = state.auth
+        partial = conn.execute(
+            "SELECT COUNT(*), COALESCE(SUM(size), 0) FROM photo "
+            "WHERE source = 'local' AND meta_level = 'partial' AND deleted = 0"
+        ).fetchone()
         return {
-            "configured": auth is not None,
+            "online_configured": auth is not None,
             "account": auth.account_name() if auth else None,
             "photos": conn.execute("SELECT COUNT(*) FROM photo WHERE deleted = 0").fetchone()[0],
-            "scopes": [dict(r) for r in conn.execute("SELECT item_id, path, last_sync FROM scope ORDER BY path")],
-            "jobs": {j.kind: j.to_dict() for j in (state.sync_job, state.export_job, state.login_job)},
+            "partial": {"count": partial[0], "bytes": partial[1]},
+            "scopes": [dict(r) for r in conn.execute(
+                "SELECT item_id, kind, path, last_sync FROM scope ORDER BY kind, path")],
+            "onedrive_roots": [str(p) for p in winfiles.onedrive_roots()],
+            "jobs": {j.kind: j.to_dict() for j in (state.sync_job, state.enrich_job, state.export_job, state.login_job)},
             "export_dir": str(config.default_export_dir()),
         }
 
@@ -169,10 +189,14 @@ def create_app(state: State | None = None) -> FastAPI:
             state.auth.logout()
         return {"ok": True}
 
-    # -- Ordnerauswahl und Indexierung --------------------------------------
+    # -- Ordnerauswahl ---------------------------------------------------------
+
+    @app.get("/api/local/folders")
+    def local_folders(path: str | None = None):
+        return local_source.list_subfolders(path)
 
     @app.get("/api/folders")
-    def folders(parent: str = "root"):
+    def graph_folders(parent: str = "root"):
         items = state.client.child_folders(parent)
         return [
             {"id": f["id"], "name": f["name"], "children": f.get("folder", {}).get("childCount", 0)}
@@ -181,51 +205,100 @@ def create_app(state: State | None = None) -> FastAPI:
 
     @app.post("/api/scopes")
     def add_scope(body: ScopeIn, conn=Conn):
-        return sync.add_scope(conn, state.client, body.item_id)
+        if state.busy():
+            raise HTTPException(409, "Bitte warten, bis die laufende Aufgabe beendet ist.")
+        if body.kind == "local":
+            if not body.path:
+                raise HTTPException(400, "Ordnerpfad fehlt.")
+            return local_source.add_local_scope(conn, body.path)
+        if body.kind == "graph":
+            return sync.add_scope(conn, state.client, body.item_id or "root")
+        raise HTTPException(400, "Unbekannte Art.")
 
-    @app.delete("/api/scopes/{item_id}")
+    @app.delete("/api/scopes")
     def remove_scope(item_id: str, conn=Conn):
-        if state.sync_job.running:
-            raise HTTPException(409, "Während der Indexierung nicht möglich.")
+        if state.busy():
+            raise HTTPException(409, "Bitte warten, bis die laufende Aufgabe beendet ist.")
         sync.remove_scope(conn, item_id)
         return {"ok": True}
 
+    # -- Hintergrundaufgaben ---------------------------------------------------
+
     @app.post("/api/sync")
     def start_sync():
-        client = state.client
+        if state.enrich_job.running:
+            raise HTTPException(409, "Während des Nachladens nicht möglich.")
 
         def run(job: Job):
             conn = state.connect()
             try:
-                scopes = conn.execute("SELECT item_id, path, delta_link FROM scope").fetchall()
+                scopes = conn.execute("SELECT item_id, kind, path, delta_link FROM scope").fetchall()
                 if not scopes:
                     raise ValueError("Bitte zuerst Ordner auswählen.")
-                total = 0
+                total, skipped = 0, []
                 for scope in scopes:
                     if job.cancelled():
-                        raise InterruptedError("Indexierung abgebrochen")
+                        raise InterruptedError("Einlesen abgebrochen")
+                    if scope["kind"] == "local":
+                        total += local_source.scan_scope(
+                            conn, scope["item_id"],
+                            progress=lambda text, done, n: job.update(text, done, n),
+                            cancelled=job.cancelled,
+                        )
+                        continue
+                    client = state.optional_client()
+                    if client is None:
+                        skipped.append(scope["path"])
+                        continue
                     path = scope["path"]
 
-                    def progress(_item_id, count, path=path, base=total):
-                        job.update(f"Lese {path} …", done=base + count)
+                    def progress(_item_id, count, path=path):
+                        job.update(f"Lese online {path} …", count, 0)
                         if job.cancelled():
-                            raise InterruptedError("Indexierung abgebrochen")
+                            raise InterruptedError("Einlesen abgebrochen")
 
                     total += sync.sync_scope(conn, client, scope["item_id"], scope["delta_link"], progress)
-                job.update("Orte werden bestimmt …")
+                job.update("Orte werden bestimmt …", 0, 0)
                 geocode.geocode_pending(conn)
-                job.update(f"Fertig: {total} Bilder/Videos verarbeitet.", done=total)
+                message = f"Fertig: {total} neue oder geänderte Dateien."
+                if skipped:
+                    message += f" Übersprungen (nicht angemeldet): {', '.join(skipped)}"
+                job.update(message)
                 return {"processed": total}
             finally:
                 conn.close()
 
         if not state.sync_job.start(run):
-            raise HTTPException(409, "Indexierung läuft bereits.")
+            raise HTTPException(409, "Einlesen läuft bereits.")
         return state.sync_job.to_dict()
+
+    @app.post("/api/enrich")
+    def start_enrich():
+        if state.sync_job.running:
+            raise HTTPException(409, "Während des Einlesens nicht möglich.")
+
+        def run(job: Job):
+            conn = state.connect()
+            try:
+                result = local_source.enrich(
+                    conn,
+                    progress=lambda text, done, n: job.update(text, done, n),
+                    cancelled=job.cancelled,
+                )
+                job.update("Orte werden bestimmt …")
+                geocode.geocode_pending(conn)
+                job.update(f"Fertig: Details für {result['processed']} Bilder geladen, Speicher wieder freigegeben.")
+                return result
+            finally:
+                conn.close()
+
+        if not state.enrich_job.start(run):
+            raise HTTPException(409, "Nachladen läuft bereits.")
+        return state.enrich_job.to_dict()
 
     @app.post("/api/jobs/{kind}/cancel")
     def cancel_job(kind: str):
-        job = {"sync": state.sync_job, "export": state.export_job}.get(kind)
+        job = {"sync": state.sync_job, "enrich": state.enrich_job, "export": state.export_job}.get(kind)
         if job is None:
             raise HTTPException(404)
         job.cancel()
@@ -245,6 +318,14 @@ def create_app(state: State | None = None) -> FastAPI:
             raise HTTPException(404)
         return result
 
+    @app.post("/api/photos/{photo_id}/reveal")
+    def reveal(photo_id: str, conn=Conn):
+        row = conn.execute("SELECT local_path FROM photo WHERE id = ?", (photo_id,)).fetchone()
+        if not row or not row["local_path"] or not os.path.exists(row["local_path"]):
+            raise HTTPException(404, "Datei nicht gefunden.")
+        winfiles.reveal(Path(row["local_path"]))
+        return {"ok": True}
+
     @app.get("/api/facets")
     def facets(conn=Conn):
         return queries.facets(conn)
@@ -256,22 +337,28 @@ def create_app(state: State | None = None) -> FastAPI:
 
     @app.get("/api/thumb/{photo_id}")
     def thumb(photo_id: str, size: str = "medium", conn=Conn):
-        if size not in ("small", "medium", "large"):
+        if size not in local_source.THUMB_PX:
             raise HTTPException(400)
-        if not conn.execute("SELECT 1 FROM photo WHERE id = ?", (photo_id,)).fetchone():
+        row = conn.execute("SELECT source, local_path FROM photo WHERE id = ?", (photo_id,)).fetchone()
+        if not row:
             raise HTTPException(404)
-        cache = config.thumbs_dir() / f"{re.sub(r'[^A-Za-z0-9!_-]', '_', photo_id)}_{size}.jpg"
-        if not cache.exists():
+        cache = local_source.thumb_cache_file(photo_id, size)
+        if cache.exists():
+            return FileResponse(cache, media_type="image/jpeg", headers={"Cache-Control": "max-age=604800"})
+        if row["source"] == "local":
+            data = _local_thumb(row["local_path"], size)
+        else:
             try:
                 data = state.client.thumbnail(photo_id, size)
-            except GraphError as err:
-                if err.status == 404:  # z. B. Formate ohne Vorschau
-                    return Response(status_code=404)
-                raise
+            except (GraphError, HTTPException):
+                data = None
+        if data is None:
+            return Response(status_code=404)
+        if size != "large":  # große Vorschauen nicht dauerhaft speichern
             tmp = cache.with_suffix(f".{threading.get_ident()}.tmp")
             tmp.write_bytes(data)
             tmp.replace(cache)
-        return FileResponse(cache, media_type="image/jpeg", headers={"Cache-Control": "max-age=604800"})
+        return Response(data, media_type="image/jpeg", headers={"Cache-Control": "max-age=604800"})
 
     # -- Alben ----------------------------------------------------------------
 
@@ -315,7 +402,7 @@ def create_app(state: State | None = None) -> FastAPI:
         if body.structure not in export.STRUCTURES:
             raise HTTPException(400, "Unbekannte Struktur.")
         target = Path(body.target_dir).expanduser() if body.target_dir else config.default_export_dir()
-        client = state.client
+        client = state.optional_client()
 
         def run(job: Job):
             job.update(f"Exportiere {len(ids)} Dateien …", 0, len(ids))
@@ -323,7 +410,7 @@ def create_app(state: State | None = None) -> FastAPI:
             try:
                 result = export.export_zip(
                     export_conn, client, ids, target, body.name, body.structure,
-                    progress=lambda i, n, name: job.update(f"Lade {name}", i, n),
+                    progress=lambda i, n, name: job.update(f"Kopiere {name}", i, n),
                     cancelled=job.cancelled,
                 )
             finally:
@@ -345,9 +432,21 @@ def create_app(state: State | None = None) -> FastAPI:
     return app
 
 
+def _local_thumb(path: str | None, size: str) -> bytes | None:
+    """Vorschau aus der lokalen Datei – nie für "nur online"-Dateien (kein Download)."""
+    if not path:
+        return None
+    try:
+        if winfiles.is_online_only(os.stat(path)):
+            return None
+    except OSError:
+        return None
+    return local_source.thumbnail_bytes(path, size)
+
+
 def _filter_params(request: Request) -> dict:
     params = dict(request.query_params)
-    for key in ("no_date", "no_gps"):
+    for key in ("no_date", "no_gps", "partial"):
         if key in params:
             params[key] = params[key] in ("1", "true", "on")
     return params

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bilderkatalog"
 version = "0.1.0"
-description = "Lokaler, nur lesender Bilderkatalog für OneDrive: sortieren, gruppieren, virtuelle Alben und ZIP-Export über Metadaten."
+description = "Bilderkatalog für OneDrive ohne Azure-Registrierung: sortieren, gruppieren, virtuelle Alben und ZIP-Export über Metadaten."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -18,10 +18,13 @@ dependencies = [
     "platformdirs>=4.0",
     "python-dotenv>=1.0",
     "reverse_geocoder>=1.5",
+    "pillow>=10",
+    "pywin32>=306; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+heic = ["pillow-heif>=0.16"]
 
 [project.scripts]
 bilderkatalog = "bilderkatalog.__main__:main"

@@ -21,7 +21,7 @@ def make_client(tmp_path):
 def test_status_without_setup(tmp_path):
     client = make_client(tmp_path)
     status = client.get("/api/status").json()
-    assert status["configured"] is False and status["photos"] == 2
+    assert status["online_configured"] is False and status["photos"] == 2
 
 
 def test_setup_validates_and_stores_outside_repo(tmp_path):

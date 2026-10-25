@@ -13,10 +13,6 @@ async function api(path, { method = "GET", body } = {}) {
     opts.body = JSON.stringify(body);
   }
   const res = await fetch(path, opts);
-  if (res.status === 401) {
-    showScreen("login");
-    throw new Error("Nicht angemeldet.");
-  }
   const data = res.headers.get("content-type")?.includes("json") ? await res.json() : null;
   if (!res.ok) throw new Error(data?.detail || `Fehler ${res.status}`);
   return data;
@@ -78,34 +74,46 @@ const state = {
 
 // ---------- Start ----------
 
-function showScreen(name) {
-  for (const id of ["setup", "login", "app"]) $("#" + id).hidden = id !== name;
-}
-
 async function boot() {
   const status = await api("/api/status");
-  if (!status.configured) return showScreen("setup");
-  if (!status.account) {
-    showScreen("login");
-    if (status.jobs.login.state === "running") pollLogin();
-    return;
-  }
-  showScreen("app");
-  $("#account").textContent = status.account;
   state.exportDir = status.export_dir;
+  applyStatus(status);
   handleJobs(status.jobs, true);
   await Promise.all([loadSidebar(), reload()]);
   if (!status.scopes.length) openFolders();
 }
 
+function applyStatus(status) {
+  state.status = status;
+  $("#online-btn").textContent = status.account ? `Online: ${status.account}` : "Online-Zugang";
+  const partial = status.partial.count;
+  $("#enrich-btn").hidden = partial === 0;
+  $("#enrich-btn").textContent = `Details nachladen (${partial.toLocaleString("de-DE")})`;
+}
+
+// ---------- Optionaler Online-Zugang ----------
+
+$("#online-btn").addEventListener("click", () => { renderOnline(); $("#online-dlg").showModal(); });
+$("#online-close").addEventListener("click", () => $("#online-dlg").close());
+
+function renderOnline() {
+  const s = state.status;
+  $("#online-account").hidden = !s.account;
+  $("#online-name").textContent = s.account || "";
+  $("#setup-form").hidden = Boolean(s.account);
+  $("#login-btn").hidden = !s.online_configured || Boolean(s.account);
+}
+
 $("#setup-form").addEventListener("submit", async (event) => {
   event.preventDefault();
-  $("#setup-error").textContent = "";
+  $("#login-msg").textContent = "";
   try {
     await api("/api/setup", { method: "POST", body: { client_id: event.target.client_id.value } });
-    boot();
+    applyStatus(await api("/api/status"));
+    renderOnline();
+    $("#login-msg").textContent = "Gespeichert. Jetzt anmelden.";
   } catch (err) {
-    $("#setup-error").textContent = err.message;
+    $("#login-msg").textContent = err.message;
   }
 });
 
@@ -121,15 +129,36 @@ $("#login-btn").addEventListener("click", async () => {
 async function pollLogin() {
   $("#login-msg").textContent = "Bitte im geöffneten Browserfenster anmelden …";
   const status = await api("/api/status");
-  const job = status.jobs.login;
-  if (status.account) return boot();
-  if (job.state === "running") return setTimeout(pollLogin, 1500);
-  $("#login-msg").textContent = job.message || "Anmeldung nicht abgeschlossen.";
+  applyStatus(status);
+  if (status.account) { $("#login-msg").textContent = ""; return renderOnline(); }
+  if (status.jobs.login.state === "running") return setTimeout(pollLogin, 1500);
+  $("#login-msg").textContent = status.jobs.login.message || "Anmeldung nicht abgeschlossen.";
 }
 
 $("#logout-btn").addEventListener("click", async () => {
   await api("/api/logout", { method: "POST" });
-  showScreen("login");
+  applyStatus(await api("/api/status"));
+  renderOnline();
+});
+
+// ---------- Details nachladen ----------
+
+$("#enrich-btn").addEventListener("click", () => {
+  const p = state.status.partial;
+  $("#enrich-info").textContent =
+    `${p.count.toLocaleString("de-DE")} Bilder liegen nur online (zusammen ${formatSize(p.bytes)}). ` +
+    "Von ihnen ist bisher nur das Aufnahmedatum bekannt.";
+  const dlg = $("#enrich-dlg");
+  dlg.onclose = async () => {
+    if (dlg.returnValue !== "ok") return;
+    try {
+      await api("/api/enrich", { method: "POST" });
+      startPolling();
+    } catch (err) {
+      toast(err.message);
+    }
+  };
+  dlg.showModal();
 });
 
 // ---------- Seitenleiste ----------
@@ -225,6 +254,8 @@ function renderSidebar() {
       { tooltip: "Kein EXIF-Datum: Datum stammt aus Dateiname oder Dateizeit" })),
     el("li", {}, navItem("Ohne GPS", f.special.no_gps, { no_gps: true }, "Ohne GPS-Position")),
     el("li", {}, navItem("Videos", f.special.videos, { media: "video" }, "Videos")),
+    f.special.partial ? el("li", {}, navItem("Nur online, Details fehlen", f.special.partial, { partial: true }, "Nur online – Details fehlen",
+      { tooltip: "Nur das Aufnahmedatum ist bekannt. „Details nachladen“ ergänzt Ort, Kamera und Vorschau." })) : null,
   ));
 }
 
@@ -312,7 +343,9 @@ function renderTiles(start) {
 
 function tile(item, index) {
   const img = el("img", { loading: "lazy", src: thumbUrl(item.id), alt: item.name, title: `${item.name}\n${formatDate(item.taken_at)}` });
-  img.addEventListener("error", () => img.replaceWith(el("div", { class: "noimg" }, item.name)), { once: true });
+  img.addEventListener("error", () => img.replaceWith(el("div", { class: "noimg" },
+    item.online_only ? el("span", { class: "cloud", title: "Nur online – Vorschau nach „Details nachladen“" }, "☁") : null,
+    el("span", {}, item.name), el("span", {}, formatDay(item.taken_at)))), { once: true });
   const node = el("div", { class: "tile" + (state.selected.has(item.id) ? " selected" : ""), "data-index": index },
     img,
     el("span", { class: "check", role: "checkbox", "aria-label": "Auswählen" }),
@@ -509,14 +542,18 @@ async function renderLightbox() {
     ["Datumsquelle", sourceLabel],
     ["Ort", detail.country_code ? place : "–"],
     ["GPS", detail.lat != null ? `${detail.lat.toFixed(5)}, ${detail.lon.toFixed(5)}` : "–"],
-    ["Kamera", [detail.camera_make, detail.camera_model].filter(Boolean).join(" ") || "–"],
+    ["Kamera", (detail.camera_model?.startsWith(detail.camera_make || " ") ? detail.camera_model
+      : [detail.camera_make, detail.camera_model].filter(Boolean).join(" ")) || "–"],
     ["Größe", `${detail.width && detail.height ? `${detail.width} × ${detail.height} · ` : ""}${formatSize(detail.size)}`],
     ["Ordner", detail.parent_path || "–"],
     ["Alben", detail.albums.map((a) => a.name).join(", ") || "–"],
   ];
   $("#lb-meta").replaceChildren(
     el("dl", {}, rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
-    detail.web_url ? el("a", { href: detail.web_url, target: "_blank", rel: "noopener" }, "In OneDrive öffnen ↗") : null,
+    detail.meta_level === "partial" ? el("p", {}, "Nur online: Ort, Kamera und Vorschau fehlen noch („Details nachladen“).") : null,
+    detail.source === "local"
+      ? el("p", {}, el("button", { onclick: () => api(`/api/photos/${encodeURIComponent(item.id)}/reveal`, { method: "POST" }).catch((e) => toast(e.message)) }, "Im Explorer zeigen"))
+      : detail.web_url ? el("a", { href: detail.web_url, target: "_blank", rel: "noopener" }, "In OneDrive öffnen ↗") : null,
     el("p", {}, el("button", { onclick: () => { $("#lightbox").close(); chooseAlbum({ ids: [item.id] }); } }, "Zu Album …")),
   );
 }
@@ -541,53 +578,89 @@ $("#lightbox").addEventListener("keydown", (event) => {
 
 $("#folders-btn").addEventListener("click", openFolders);
 $("#folders-close").addEventListener("click", () => $("#folders-dlg").close());
-$("#add-root").addEventListener("click", () => addScope("root"));
+$("#add-root").addEventListener("click", () => addScope({ kind: "graph", item_id: "root" }));
+$("#path-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const path = event.target.path.value.trim();
+  if (path) addScope({ kind: "local", path }).then(() => { event.target.path.value = ""; });
+});
 
 async function openFolders() {
   $("#folders-dlg").showModal();
   await renderScopes();
-  const tree = $("#folder-tree");
-  tree.replaceChildren(el("li", { class: "muted" }, "Lade Ordner …"));
+  const local = $("#local-tree");
+  local.replaceChildren(el("li", { class: "muted" }, "Lade Ordner …"));
   try {
-    tree.replaceChildren(...(await api("/api/folders?parent=root")).map(folderNode));
+    const roots = await api("/api/local/folders");
+    local.replaceChildren(...(roots.length ? roots.map((f) => treeNode(f, localChildren, { kind: "local", path: f.path }))
+      : [el("li", { class: "muted" }, "Kein OneDrive-Ordner gefunden – Pfad unten eingeben.")]));
   } catch (err) {
-    tree.replaceChildren(el("li", { class: "error" }, err.message));
+    local.replaceChildren(el("li", { class: "error" }, err.message));
   }
+  const graph = $("#graph-section");
+  graph.hidden = !state.status?.account;
+  if (!graph.hidden) {
+    const tree = $("#folder-tree");
+    tree.replaceChildren(el("li", { class: "muted" }, "Lade Ordner …"));
+    try {
+      const folders = await api("/api/folders?parent=root");
+      tree.replaceChildren(...folders.map((f) => treeNode({ ...f, has_children: f.children > 0 }, graphChildren, { kind: "graph", item_id: f.id })));
+    } catch (err) {
+      tree.replaceChildren(el("li", { class: "error" }, err.message));
+    }
+  }
+}
+
+async function localChildren(folder) {
+  const subs = await api(`/api/local/folders?${qs({ path: folder.path })}`);
+  return subs.map((f) => treeNode(f, localChildren, { kind: "local", path: f.path }));
+}
+
+async function graphChildren(folder) {
+  const subs = await api(`/api/folders?parent=${encodeURIComponent(folder.id)}`);
+  return subs.map((f) => treeNode({ ...f, has_children: f.children > 0 }, graphChildren, { kind: "graph", item_id: f.id }));
 }
 
 async function renderScopes() {
   const status = await api("/api/status");
+  applyStatus(status);
   $("#scope-list").replaceChildren(...(status.scopes.length ? status.scopes.map((s) => el("li", {},
-    el("span", {}, s.path === "/" ? "Ganzes OneDrive" : s.path,
+    el("span", {},
+      el("span", { class: "kind" }, s.kind === "local" ? "lokal" : "online"),
+      s.path === "/" ? "Ganzes OneDrive" : s.path,
       el("span", { class: "muted" }, s.last_sync ? `  · zuletzt ${formatDate(s.last_sync)}` : "  · noch nicht eingelesen")),
     el("button", { class: "link", onclick: () => removeScope(s) }, "Entfernen"),
   )) : [el("li", { class: "muted" }, "Noch keine Ordner gewählt.")]));
 }
 
-function folderNode(folder) {
+function treeNode(folder, loadChildren, scopeBody) {
   const children = el("ul", { hidden: true });
   let loaded = false;
-  const toggle = el("button", { class: "toggle", "aria-label": "Aufklappen" }, folder.children ? "▸" : "");
+  const toggle = el("button", { class: "toggle", "aria-label": "Aufklappen" }, folder.has_children ? "▸" : "");
   toggle.addEventListener("click", async () => {
-    if (!folder.children) return;
+    if (!folder.has_children) return;
     children.hidden = !children.hidden;
     toggle.textContent = children.hidden ? "▸" : "▾";
     if (!loaded) {
       loaded = true;
       children.replaceChildren(el("li", { class: "muted" }, "…"));
-      const subs = await api(`/api/folders?parent=${encodeURIComponent(folder.id)}`);
-      children.replaceChildren(...subs.map(folderNode));
+      try {
+        const nodes = await loadChildren(folder);
+        children.replaceChildren(...(nodes.length ? nodes : [el("li", { class: "muted" }, "keine Unterordner")]));
+      } catch (err) {
+        children.replaceChildren(el("li", { class: "error" }, err.message));
+      }
     }
   });
   return el("li", {},
-    el("div", { class: "row" }, toggle, el("span", { class: "name" }, folder.name),
-      el("button", { class: "add", onclick: () => addScope(folder.id) }, "Hinzufügen")),
+    el("div", { class: "row" }, toggle, el("span", { class: "name", title: folder.path || folder.name }, folder.name),
+      el("button", { class: "add", onclick: () => addScope(scopeBody) }, "Hinzufügen")),
     children);
 }
 
-async function addScope(itemId) {
+async function addScope(body) {
   try {
-    await api("/api/scopes", { method: "POST", body: { item_id: itemId } });
+    await api("/api/scopes", { method: "POST", body });
     await renderScopes();
   } catch (err) {
     toast(err.message);
@@ -595,8 +668,12 @@ async function addScope(itemId) {
 }
 
 async function removeScope(scope) {
-  if (!confirm(`„${scope.path}“ aus dem Katalog entfernen?\nDie Dateien in OneDrive bleiben unverändert.`)) return;
-  await api(`/api/scopes/${encodeURIComponent(scope.item_id)}`, { method: "DELETE" });
+  if (!confirm(`„${scope.path}“ aus dem Katalog entfernen?\nDie Dateien selbst bleiben unverändert.`)) return;
+  try {
+    await api(`/api/scopes?${qs({ item_id: scope.item_id })}`, { method: "DELETE" });
+  } catch (err) {
+    return toast(err.message);
+  }
   await renderScopes();
   await loadSidebar();
   reload();
@@ -622,6 +699,7 @@ function startPolling() {
   const tick = async () => {
     try {
       const status = await api("/api/status");
+      applyStatus(status);
       const running = handleJobs(status.jobs, false);
       state.pollTimer = running ? setTimeout(tick, 1000) : null;
     } catch {
@@ -632,13 +710,14 @@ function startPolling() {
 }
 
 function handleJobs(jobs, initial) {
-  const running = ["sync", "export"].find((k) => jobs[k].state === "running");
-  for (const kind of ["sync", "export"]) {
+  const kinds = ["sync", "enrich", "export"];
+  const running = kinds.find((k) => jobs[k].state === "running");
+  for (const kind of kinds) {
     const job = jobs[kind];
     const previous = state.lastJobStates[kind];
     state.lastJobStates[kind] = job.state;
     if (!initial && previous === "running" && job.state !== "running") {
-      if (kind === "sync") { loadSidebar(); reload(); }
+      if (kind !== "export") { loadSidebar(); reload(); }
       const text = job.state === "error" ? `Fehler: ${job.message}` : job.message || "Fertig.";
       const errors = job.result?.errors?.length ? ` (${job.result.errors.length} Dateien übersprungen)` : "";
       if (!running) toast(text + errors);
@@ -652,7 +731,10 @@ function handleJobs(jobs, initial) {
     const bar = $("#job-progress");
     bar.hidden = false;
     if (job.total) { bar.max = job.total; bar.value = job.done; } else { bar.removeAttribute("value"); }
-    if (running === "sync" && job.done) $("#job-msg").textContent = `${job.message} ${job.done.toLocaleString("de-DE")} Dateien`;
+    if (job.done) {
+      const of = job.total ? ` von ${job.total.toLocaleString("de-DE")}` : "";
+      $("#job-msg").textContent = `${job.message} ${job.done.toLocaleString("de-DE")}${of}`;
+    }
     $("#job-cancel").hidden = false;
     $("#job-close").hidden = true;
     if (initial) startPolling();
