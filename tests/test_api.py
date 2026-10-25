@@ -53,3 +53,10 @@ def test_albums_and_photos_flow(tmp_path):
     assert client.get("/api/photos?year=2021").json()["total"] == 1
     assert client.get("/api/photos/A").json()["albums"] == []
     assert client.get("/").status_code == 200
+
+
+def test_static_files_are_versioned_and_revalidated(tmp_path):
+    client = make_client(tmp_path)
+    html = client.get("/").text
+    assert '/static/app.js?v=' in html and '/static/style.css?v=' in html
+    assert client.get("/static/app.js").headers["cache-control"] == "no-cache"

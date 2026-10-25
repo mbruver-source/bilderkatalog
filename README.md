@@ -93,7 +93,7 @@ Die App ist nur auf dem eigenen Rechner erreichbar (`127.0.0.1`), nicht im Netzw
 ### Bedienung
 
 - **Klick auf ein Bild** öffnet die Großansicht mit allen Metadaten und „Im Explorer zeigen“. Mit den Pfeiltasten blätterst du weiter.
-- **Klick auf den Kreis** oben links wählt ein Bild aus. Mit **Shift-Klick** wählst du einen ganzen Bereich. Sobald etwas ausgewählt ist, wählt jeder Klick aus.
+- **Auswählen** (oben in der Ansicht) schaltet den Auswahlmodus ein: Jeder Klick wählt dann ein Bild aus, **Shift-Klick** einen ganzen Bereich. Alternativ klickst du auf den Kreis oben links im Bild. **Esc** beendet die Auswahl.
 - Über die Auswahlleiste geht es **Zu Album …** oder **Als ZIP …**. Beim ZIP-Export werden Nur-online-Bilder kurz geladen und danach wieder freigegeben.
 - **Ansicht → Album / Ansicht → ZIP** übernimmt alle Bilder des aktuellen Filters, etwa „Juli 2023“ oder „Paris“.
 - In einem Album entfernt **Aus Album entfernen** die Bilder nur aus dem Album.

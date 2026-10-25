@@ -53,6 +53,8 @@ button, select, input {
 }
 button { cursor: pointer; }
 button:hover { background: var(--hover); }
+button:disabled { opacity: .45; cursor: default; }
+button:disabled:hover { background: var(--panel); }
 button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 button.primary:hover { filter: brightness(1.08); }
 button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; }
@@ -133,6 +135,8 @@ main { flex: 1; min-width: 0; padding: 12px 16px 96px; }
   border: 2px solid #fff; background: #0005; opacity: 0; transition: opacity .1s; cursor: pointer;
 }
 .tile:hover .check, .grid.selecting .check { opacity: 1; }
+.grid.selecting .tile { cursor: pointer; }
+.grid { user-select: none; }
 .tile.selected { outline: 3px solid var(--accent); outline-offset: -3px; }
 .tile.selected .check { opacity: 1; background: var(--accent); }
 .tile.selected .check::after { content: "✓"; color: #fff; font-size: 13px; position: absolute; inset: 0; display: grid; place-items: center; }

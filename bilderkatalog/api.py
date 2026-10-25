@@ -9,7 +9,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -117,7 +117,11 @@ def create_app(state: State | None = None) -> FastAPI:
             return JSONResponse({"detail": "Nur lokaler Zugriff erlaubt."}, status_code=403)
         if request.method not in ("GET", "HEAD") and request.headers.get(CSRF_HEADER) != "1":
             return JSONResponse({"detail": "Fehlender Sicherheits-Header."}, status_code=403)
-        return await call_next(request)
+        response = await call_next(request)
+        if request.url.path.startswith("/static/"):
+            # Nach Updates nie veralteten Code verwenden (Browser fragt per ETag nach → meist 304)
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.exception_handler(NotLoggedIn)
     async def not_logged_in(_request, _err):
@@ -435,7 +439,12 @@ def create_app(state: State | None = None) -> FastAPI:
 
     @app.get("/")
     def index():
-        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache"})
+        # Versionskennung an Skript/Stylesheet hängen, damit Browser-Caches sie neu laden
+        html = (STATIC / "index.html").read_text(encoding="utf-8")
+        for name in ("app.js", "style.css"):
+            version = int((STATIC / name).stat().st_mtime)
+            html = html.replace(f'/static/{name}"', f'/static/{name}?v={version}"')
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     return app

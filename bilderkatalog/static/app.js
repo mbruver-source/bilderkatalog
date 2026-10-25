@@ -368,7 +368,7 @@ function tile(item, index) {
     item.is_video ? el("span", { class: "badge" }, "▶ Video") : null,
   );
   node.addEventListener("click", (event) => {
-    if (event.target.classList.contains("check") || event.shiftKey || event.ctrlKey || event.metaKey || state.selected.size) {
+    if (state.selectMode || event.target.classList.contains("check") || event.shiftKey || event.ctrlKey || event.metaKey || state.selected.size) {
       toggleSelect(index, event.shiftKey);
     } else {
       openLightbox(index);
@@ -411,10 +411,22 @@ function refreshSelection() {
     node.classList.toggle("selected", state.selected.has(item.id));
   });
   const n = state.selected.size;
-  $("#grid").classList.toggle("selecting", n > 0);
-  $("#selbar").hidden = n === 0;
+  $("#grid").classList.toggle("selecting", n > 0 || state.selectMode);
+  $("#selbar").hidden = n === 0 && !state.selectMode;
   $("#sel-count").textContent = `${n} ausgewählt`;
+  $("#sel-hint").hidden = n > 0;
+  for (const id of ["#sel-album", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
+  $("#select-mode-btn").textContent = state.selectMode ? "Auswahl beenden" : "Auswählen";
+  $("#select-mode-btn").classList.toggle("primary", state.selectMode);
 }
+
+function setSelectMode(on) {
+  state.selectMode = on;
+  if (!on) state.selected.clear();
+  refreshSelection();
+}
+
+$("#select-mode-btn").addEventListener("click", () => setSelectMode(!state.selectMode));
 
 function clearSelection() {
   state.selected.clear();
@@ -447,7 +459,7 @@ $("#sel-enrich").addEventListener("click", () => {
 $("#view-zip-btn").addEventListener("click", () => openExport({ filter: currentQuery() }, `${state.total} Dateien dieser Ansicht`, state.title));
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && state.selected.size && !document.querySelector("dialog[open]")) clearSelection();
+  if (event.key === "Escape" && (state.selected.size || state.selectMode) && !document.querySelector("dialog[open]")) setSelectMode(false);
 });
 
 // ---------- Alben-Dialog ----------
