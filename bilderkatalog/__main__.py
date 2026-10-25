@@ -6,6 +6,7 @@ import argparse
 import sys
 import threading
 import webbrowser
+from pathlib import Path
 
 from . import __version__, config, db, geocode, sync
 
@@ -120,11 +121,18 @@ def _window() -> int:
             break
         time.sleep(0.05)
 
+    # Windows erwartet .ico, Qt/GTK ein normales Bild
+    icon = Path(__file__).parent / "static" / ("icon.ico" if sys.platform == "win32" else "icon.png")
+    if sys.platform == "win32":
+        # Eigene Taskleisten-Gruppe, sonst zeigt Windows das Python-Symbol
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Bilderkatalog")
     webview.create_window(
         "Bilderkatalog", f"http://127.0.0.1:{port}/",
         width=1400, height=900, min_size=(800, 500), text_select=True,
     )
-    webview.start()  # blockiert, bis das Fenster geschlossen wird
+    webview.start(icon=str(icon))  # blockiert, bis das Fenster geschlossen wird
     server.should_exit = True
     thread.join(timeout=5)
     return 0
