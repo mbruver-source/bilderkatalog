@@ -10,6 +10,7 @@ zusätzlich in
                          sichtbar unter "Eigenschaften → Details", siehe build.spec)
   - `bilderkatalog/version.py` (zur Laufzeit importiert: Versionsanzeige im Programm,
                          `bilderkatalog --version`, Paketversion in pyproject.toml)
+  - `docs/HANDBUCH.md`  (Zeile "Stand: Version X.Y.Z.")
 
 Wird von build_installer.bat vor dem PyInstaller-Build aufgerufen und gibt die neue
 Versionsnummer auf stdout aus, damit das Skript sie an Inno Setup weitergeben kann.
@@ -21,12 +22,15 @@ Versionsnummer auf stdout aus, damit das Skript sie an Inno Setup weitergeben ka
 from __future__ import annotations
 
 import pathlib
+import re
 import sys
 
 HIER = pathlib.Path(__file__).resolve().parent
 VERSION_DATEI = HIER / "version.txt"
 VERSION_INFO_DATEI = HIER / "version_info.txt"
 VERSION_PY_DATEI = HIER / "bilderkatalog" / "version.py"
+HANDBUCH_DATEI = HIER / "docs" / "HANDBUCH.md"
+_HANDBUCH_VERSIONSZEILE = re.compile(r"^(Stand: Version )\d+\.\d+\.\d+(\.)", re.MULTILINE)
 
 
 def version_lesen() -> tuple[int, int, int]:
@@ -110,8 +114,23 @@ def version_py_schreiben(version_text: str) -> None:
     VERSION_PY_DATEI.write_text(inhalt, encoding="utf-8")
 
 
+def handbuch_version_schreiben(version_text: str) -> None:
+    """Zieht "Stand: Version X.Y.Z." im Handbuch nach; fehlt Datei oder Zeile, passiert nichts.
+    Zeilenenden bleiben erhalten (newline="")."""
+    try:
+        with HANDBUCH_DATEI.open(encoding="utf-8", newline="") as f:
+            inhalt = f.read()
+    except FileNotFoundError:
+        return
+    neu, anzahl = _HANDBUCH_VERSIONSZEILE.subn(rf"\g<1>{version_text}\g<2>", inhalt, count=1)
+    if anzahl:
+        with HANDBUCH_DATEI.open("w", encoding="utf-8", newline="") as f:
+            f.write(neu)
+
+
 def abgeleitete_dateien_schreiben(version: tuple[int, int, int]) -> str:
     text = ".".join(str(n) for n in version)
+    handbuch_version_schreiben(text)
     version_info_schreiben(version)
     version_py_schreiben(text)
     return text

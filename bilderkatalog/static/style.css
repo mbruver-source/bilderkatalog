@@ -198,6 +198,8 @@ dialog h4 { margin: 16px 0 4px; font-size: 13px; }
 .lb-meta dt { color: #999; }
 .lb-meta dd { margin: 0; word-break: break-word; }
 .lb-meta a { color: #8ab4ff; }
+.lb-meta button { background: #2a2a2f; color: #eee; border-color: #45454c; }
+.lb-meta button:hover { background: #3a3a40; }
 .lb-close { position: absolute; top: 8px; right: 8px; color: #ddd; }
 
 /* Schmale Bildschirme */

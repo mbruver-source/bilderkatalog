@@ -15,6 +15,7 @@ def bump(tmp_path, monkeypatch):
     monkeypatch.setattr(modul, "VERSION_DATEI", tmp_path / "version.txt")
     monkeypatch.setattr(modul, "VERSION_INFO_DATEI", tmp_path / "version_info.txt")
     monkeypatch.setattr(modul, "VERSION_PY_DATEI", tmp_path / "bilderkatalog" / "version.py")
+    monkeypatch.setattr(modul, "HANDBUCH_DATEI", tmp_path / "HANDBUCH.md")
     return modul
 
 
@@ -37,6 +38,13 @@ def test_main_schreibt_alle_dateien(bump, tmp_path):
     assert "filevers=(1, 0, 8, 0)" in info and '"ProductVersion", "1.0.8.0"' in info
 
 
+def test_handbuch_stand_wird_nachgezogen(bump, tmp_path):
+    (tmp_path / "version.txt").write_text("1.0.0\n", encoding="utf-8")
+    (tmp_path / "HANDBUCH.md").write_bytes(b"# Handbuch\r\n\r\nStand: Version 1.0.0.\r\n")
+    bump.main([])
+    assert (tmp_path / "HANDBUCH.md").read_bytes() == b"# Handbuch\r\n\r\nStand: Version 1.0.1.\r\n"
+
+
 def test_sync_erhoeht_nicht(bump, tmp_path):
     (tmp_path / "version.txt").write_text("2.3.4\n", encoding="utf-8")
     assert bump.main(["--sync"]) == "2.3.4"
@@ -56,6 +64,7 @@ def test_eingecheckte_versionen_passen_zusammen():
     text = (ROOT / "version.txt").read_text(encoding="utf-8").strip()
     assert __version__ == text
     assert f'"ProductVersion", "{text}.0"' in (ROOT / "version_info.txt").read_text(encoding="utf-8")
+    assert f"Stand: Version {text}." in (ROOT / "docs" / "HANDBUCH.md").read_text(encoding="utf-8")
 
 
 def test_update_vergleich(monkeypatch):

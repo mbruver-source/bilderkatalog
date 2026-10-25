@@ -70,6 +70,7 @@ const state = {
   pollTimer: null,
   lastJobStates: {},
   open: new Set(),
+  selectMode: false,
 };
 
 // ---------- Start ----------
@@ -436,13 +437,13 @@ function refreshSelection() {
     node.classList.toggle("selected", state.selected.has(item.id));
   });
   const n = state.selected.size;
-  $("#grid").classList.toggle("selecting", n > 0 || state.selectMode);
+  $("#grid").classList.toggle("selecting", n > 0 || Boolean(state.selectMode));
   $("#selbar").hidden = n === 0 && !state.selectMode;
   $("#sel-count").textContent = `${n} ausgewählt`;
   $("#sel-hint").hidden = n > 0;
   for (const id of ["#sel-album", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
   $("#select-mode-btn").textContent = state.selectMode ? "Auswahl beenden" : "Auswählen";
-  $("#select-mode-btn").classList.toggle("primary", state.selectMode);
+  $("#select-mode-btn").classList.toggle("primary", Boolean(state.selectMode));
 }
 
 function setSelectMode(on) {
@@ -609,7 +610,7 @@ async function renderLightbox() {
     ["Ordner", detail.parent_path || "–"],
     ["Alben", detail.albums.map((a) => a.name).join(", ") || "–"],
   ];
-  $("#lb-meta").replaceChildren(
+  $("#lb-meta").replaceChildren(...[
     el("dl", {}, rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
     detail.meta_level === "partial" ? el("p", {}, "Nur online: Ort, Kamera und Vorschau fehlen noch. ",
       el("button", { onclick: (e) => enrichOne(item, e.currentTarget) }, "Vorschau laden")) : null,
@@ -617,7 +618,7 @@ async function renderLightbox() {
       ? el("p", {}, el("button", { onclick: () => api(`/api/photos/${encodeURIComponent(item.id)}/reveal`, { method: "POST" }).catch((e) => toast(e.message)) }, "Im Explorer zeigen"))
       : detail.web_url ? el("a", { href: detail.web_url, target: "_blank", rel: "noopener" }, "In OneDrive öffnen ↗") : null,
     el("p", {}, el("button", { onclick: () => { $("#lightbox").close(); chooseAlbum({ ids: [item.id] }); } }, "Zu Album …")),
-  );
+  ].filter(Boolean));  // replaceChildren würde null als Text "null" einfügen
 }
 
 async function enrichOne(item, button) {

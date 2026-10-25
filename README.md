@@ -10,6 +10,10 @@ Ein lokales Programm, das deine Bilder und Videos in OneDrive über ihre **Metad
 
 > **Deine Bilder werden nicht verändert.** Alben, Gruppen und Sortierungen existieren nur in einer lokalen SQLite-Datenbank. Das Programm liest Dateien ausschließlich. Für „Nur online“-Dateien setzt es höchstens den Status „Speicherplatz freigeben“ zurück, und den hatten sie vorher ohnehin.
 
+**Webseite:** <https://mbruver-source.github.io/bilderkatalog/> · **Handbuch:** [docs/HANDBUCH.md](docs/HANDBUCH.md) · **Download:** [Releases](https://github.com/mbruver-source/bilderkatalog/releases/latest)
+
+![Hauptfenster des Bilderkatalogs](docs/bilder/hauptfenster.jpg)
+
 *English summary: A local photo catalogue for your OneDrive folder that needs no Azure app registration. It indexes metadata (date, GPS, camera), resolves places offline, and lets you filter, group into virtual albums and export ZIPs. Files are never modified. Optional read-only Microsoft Graph access. UI language: German.*
 
 ## So funktioniert es
@@ -137,6 +141,15 @@ Danach kannst du unter „Ordner wählen“ auch Online-Ordner hinzufügen. Erfa
 - Zum Zurücksetzen löschst du einfach das Datenverzeichnis.
 
 ## Entwicklung
+
+Demo-Bilder zum Ausprobieren (erfundene Landschaften mit EXIF-Datum, GPS und Kamera, keine echten Fotos):
+
+```bash
+python tools/demo_bilder.py %USERPROFILE%\Bilderkatalog-Demo
+```
+
+Die Webseite liegt in `docs/` (GitHub Pages, Quelle: Branch `main`, Ordner `/docs`). Das Handbuch `docs/HANDBUCH.md` ist die einzige Quelle; `docs/handbuch.html` zeigt es im Browser an.
+
 
 ```bash
 pip install -e ".[dev]"
