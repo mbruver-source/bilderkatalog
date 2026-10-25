@@ -1,0 +1,27 @@
+# Umgebung
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Persönliche Daten – dürfen niemals ins Repository
+.env
+data/
+*.db
+*.db-wal
+*.db-shm
+*token_cache*
+settings.json
+thumbs/
+*.zip
+*.zip.part
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

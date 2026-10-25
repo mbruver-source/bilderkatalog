@@ -1,0 +1,29 @@
+{
+  "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/drive/items/FOLDER-A/delta?token=next",
+  "value": [
+    {
+      "id": "IMG-3",
+      "name": "IMG-20190312-WA0001.jpg",
+      "size": 120000,
+      "file": {"mimeType": "image/jpeg"},
+      "fileSystemInfo": {"createdDateTime": "2023-01-01T00:00:00Z"},
+      "parentReference": {"id": "FOLDER-A"}
+    },
+    {
+      "id": "VID-1",
+      "name": "clip.mp4",
+      "size": 9000000,
+      "file": {"mimeType": "video/mp4"},
+      "video": {"width": 1920, "height": 1080},
+      "fileSystemInfo": {"createdDateTime": "2020-05-01T12:00:00Z"},
+      "parentReference": {"id": "FOLDER-A"}
+    },
+    {
+      "id": "DOC-1",
+      "name": "notizen.txt",
+      "size": 10,
+      "file": {"mimeType": "text/plain"},
+      "parentReference": {"id": "FOLDER-A"}
+    }
+  ]
+}

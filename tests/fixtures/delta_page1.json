@@ -1,0 +1,39 @@
+{
+  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/drive/items/FOLDER-A/delta?token=page2",
+  "value": [
+    {
+      "id": "FOLDER-A",
+      "name": "Urlaub",
+      "folder": {"childCount": 3},
+      "parentReference": {"id": "ROOT"}
+    },
+    {
+      "id": "FOLDER-B",
+      "name": "Strand",
+      "folder": {"childCount": 2},
+      "parentReference": {"id": "FOLDER-A"}
+    },
+    {
+      "id": "IMG-1",
+      "name": "IMG_0001.jpg",
+      "size": 2048000,
+      "file": {"mimeType": "image/jpeg"},
+      "image": {"width": 4000, "height": 3000},
+      "photo": {"takenDateTime": "2021-07-14T09:30:00Z", "cameraMake": "Beispiel", "cameraModel": "Cam 1"},
+      "location": {"latitude": 48.8566, "longitude": 2.3522},
+      "parentReference": {"id": "FOLDER-B"},
+      "webUrl": "https://example.invalid/IMG-1",
+      "eTag": "e1"
+    },
+    {
+      "id": "IMG-2",
+      "name": "IMG_0002.jpg",
+      "size": 1900000,
+      "file": {"mimeType": "image/jpeg"},
+      "photo": {"takenDateTime": "2021-07-14T11:00:00Z", "cameraMake": "Beispiel", "cameraModel": "Cam 1"},
+      "location": {"latitude": 48.857, "longitude": 2.35},
+      "parentReference": {"id": "FOLDER-B"},
+      "eTag": "e2"
+    }
+  ]
+}
