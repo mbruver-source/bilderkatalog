@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import config
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS photo (
@@ -112,6 +112,39 @@ CREATE TABLE IF NOT EXISTS album_photo (
     PRIMARY KEY (album_id, photo_id)
 );
 CREATE INDEX IF NOT EXISTS ix_album_photo_photo ON album_photo(photo_id);
+
+-- Von Hand gesetzter oder entfernter Ort (alle Ortsspalten NULL = "kein Ort").
+-- auto_lat/auto_lon halten die GPS-Position aus der Datei für "zurücksetzen" fest.
+CREATE TABLE IF NOT EXISTS place_override (
+    photo_id      TEXT PRIMARY KEY REFERENCES photo(id) ON DELETE CASCADE,
+    lat           REAL,
+    lon           REAL,
+    city          TEXT,
+    region        TEXT,
+    country_code  TEXT,
+    auto_lat      REAL,
+    auto_lon      REAL
+);
+
+-- Wie beim Datum: Einlesen, Nachladen und Ortsauflösung schreiben den automatischen Ort,
+-- der Trigger merkt sich die GPS-Position aus der Datei und stellt den eigenen Ort wieder her.
+CREATE TRIGGER IF NOT EXISTS tr_photo_keep_manual_place
+AFTER UPDATE OF lat, lon, city, region, country_code ON photo
+WHEN EXISTS (SELECT 1 FROM place_override o WHERE o.photo_id = NEW.id AND (
+    NEW.lat IS NOT o.lat OR NEW.lon IS NOT o.lon OR NEW.city IS NOT o.city
+    OR NEW.region IS NOT o.region OR NEW.country_code IS NOT o.country_code))
+BEGIN
+    UPDATE place_override SET auto_lat = NEW.lat, auto_lon = NEW.lon
+    WHERE photo_id = NEW.id AND (NEW.lat IS NOT lat OR NEW.lon IS NOT lon);
+    UPDATE photo SET
+        lat = (SELECT lat FROM place_override WHERE photo_id = NEW.id),
+        lon = (SELECT lon FROM place_override WHERE photo_id = NEW.id),
+        city = (SELECT city FROM place_override WHERE photo_id = NEW.id),
+        region = (SELECT region FROM place_override WHERE photo_id = NEW.id),
+        country_code = (SELECT country_code FROM place_override WHERE photo_id = NEW.id),
+        geocoded = 1
+    WHERE id = NEW.id;
+END;
 """
 
 
@@ -141,6 +174,7 @@ MIGRATIONS = {
         "ALTER TABLE photo ADD COLUMN dup_group INTEGER",
         "ALTER TABLE photo ADD COLUMN dup_rank INTEGER",
     ],
+    4: [],  # nur neue Tabelle und Trigger (place_override), legt SCHEMA an
 }
 
 

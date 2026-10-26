@@ -67,7 +67,7 @@ def fuehre_selbsttest_aus(protokoll_pfad: str | None = None) -> int:
         schritt("Ortsauflösung (Ortsdatensatz gebündelt)", lambda: _orte(kontext))
         schritt("Vorschaubild", lambda: _vorschau(kontext))
         schritt("ZIP-Export", lambda: _zip(kontext, arbeitsordner / "export"))
-        schritt("Duplikate, Favoriten, Datum, Sicherung", lambda: _eigene_eintraege(kontext))
+        schritt("Duplikate, Favoriten, Datum, Ort, Sicherung", lambda: _eigene_eintraege(kontext))
         schritt("Weboberfläche und API", _server)
         schritt("Lizenzhinweise", _lizenzen)
         if sys.platform == "win32":
@@ -133,7 +133,7 @@ def _vorschau(kontext: dict) -> str:
 def _eigene_eintraege(kontext: dict) -> str:
     import shutil as sh
 
-    from . import albums, dates, duplicates, local_source, sicherung
+    from . import albums, dates, duplicates, local_source, places, sicherung
 
     conn, pfad = kontext["conn"], Path(kontext["pfad"])
     kopie = pfad.with_name("IMG_0001 (1).jpg")
@@ -143,13 +143,17 @@ def _eigene_eintraege(kontext: dict) -> str:
     albums.set_favorite(conn, [kontext["id"]], True)
     dates.set_date(conn, [kontext["id"]], "07.1998")
     assert conn.execute("SELECT year FROM photo WHERE id = ?", (kontext["id"],)).fetchone()[0] == 1998
+    treffer = places.search(conn, "Lissabon")  # Ortsverzeichnis gebündelt?
+    assert treffer and treffer[0]["country_code"] == "PT", treffer[:1]
+    places.set_place(conn, [kontext["id"]], treffer[0])
     daten = sicherung.collect(conn)
-    assert sicherung.counts(daten) == {"albums": 0, "favorites": 1, "dates": 1}, sicherung.counts(daten)
+    assert sicherung.counts(daten) == {"albums": 0, "favorites": 1, "dates": 1, "places": 1}, sicherung.counts(daten)
     dates.reset(conn, [kontext["id"]])
+    places.reset(conn, [kontext["id"]])
     kopie.unlink()
     local_source.scan_scope(conn, str(pfad.parent.parent.resolve()), workers=1)
     duplicates.refresh(conn)
-    return "1 Kopie erkannt, Sicherung vollständig"
+    return "1 Kopie erkannt, Ort gefunden, Sicherung vollständig"
 
 
 def _windows_vorschau(kontext: dict) -> str:

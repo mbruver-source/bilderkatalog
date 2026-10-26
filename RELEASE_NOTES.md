@@ -18,8 +18,10 @@ Die erste Version des Bilderkatalogs als Windows-Programm mit Installer.
 **Aufräumen und Korrigieren**
 - Doppelte Dateien: Kopien aus Handy-Sicherung, SD-Karte usw. werden erkannt. „Kopien
   ausblenden“ zeigt überall nur ein Exemplar. Gelöscht wird nichts.
-- Aufnahmedatum von Hand setzen, z. B. „07.1998“ für eingescannte Fotos. Gilt nur im Katalog
-  und bleibt beim erneuten Einlesen erhalten.
+- Aufnahmedatum von Hand setzen, z. B. „07.1998“ für eingescannte Fotos.
+- Ort hinzufügen, ändern oder entfernen – für ein Bild oder eine ganze Auswahl. Ortssuche
+  offline, auch mit deutschen Namen („Lissabon“), oder per Koordinaten aus einer Karten-App.
+- Beides gilt nur im Katalog und bleibt beim erneuten Einlesen erhalten.
 
 **Nur-online-Bilder und Videos**
 - Vorschaubilder kommen ohne Download direkt von OneDrive, auch für Videos.
@@ -28,7 +30,7 @@ Die erste Version des Bilderkatalogs als Windows-Programm mit Installer.
   freigegeben.
 
 **Sicherung**
-- Alben, Favoriten und Datumskorrekturen lassen sich als kleine Datei sichern und – auch auf
+- Alben, Favoriten sowie eigene Daten und Orte lassen sich als kleine Datei sichern und – auch auf
   einem anderen PC – wiederherstellen. Beim Schließen sichert das Programm automatisch.
 
 **Installation**

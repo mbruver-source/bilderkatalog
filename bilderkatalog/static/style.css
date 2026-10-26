@@ -246,3 +246,13 @@ dialog h4 { margin: 16px 0 4px; font-size: 13px; }
 }
 .file-btn:hover { background: var(--hover); }
 .file-btn input { display: none; }
+
+/* Ort setzen */
+.place-results { list-style: none; padding: 0; margin: -4px 0 8px; max-height: 40vh; overflow-y: auto; }
+.place-results button {
+  width: 100%; text-align: left; border: none; border-radius: 6px; padding: 6px 8px;
+  display: flex; justify-content: space-between; gap: 8px; background: none;
+}
+.place-results button:hover { background: var(--hover); }
+.place-results button.chosen { background: var(--sel); }
+.place-results li.muted { padding: 6px 8px; }

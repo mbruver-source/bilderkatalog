@@ -61,6 +61,7 @@
       <button id="sel-fav" title="Als Favorit markieren (F)">★ Favorit</button>
       <button id="sel-album">Zu Album …</button>
       <button id="sel-date" title="Aufnahmedatum von Hand setzen (nur im Katalog)">Datum …</button>
+      <button id="sel-place" title="Ort hinzufügen oder ändern (nur im Katalog)">Ort …</button>
       <button id="sel-remove" hidden>Aus Album entfernen</button>
       <button id="sel-zip">Als ZIP …</button>
       <button id="sel-enrich" title="Ort und Kamera der ausgewählten Nur-online-Bilder nachladen">Details nachladen</button>
@@ -116,10 +117,30 @@
     </form>
   </dialog>
 
+  <!-- Ort setzen -->
+  <dialog id="place-dlg" class="wide">
+    <h3>Ort setzen</h3>
+    <p class="muted" id="place-info"></p>
+    <label>Ort suchen oder Koordinaten eingeben
+      <input id="place-q" placeholder="z. B. Lissabon, Rosbach oder 48.8566, 2.3522" autocomplete="off" spellcheck="false">
+    </label>
+    <ul id="place-results" class="place-results"></ul>
+    <p class="muted">Koordinaten kopierst du z. B. aus einer Karten-App (Rechtsklick auf die Stelle).
+      Der Ort gilt nur im Katalog, die Dateien bleiben unverändert.</p>
+    <p class="error" id="place-error"></p>
+    <div class="actions">
+      <button id="place-remove" title="Falsche Position: das Bild hat dann keinen Ort">Ort entfernen</button>
+      <button id="place-reset" title="GPS-Position aus der Datei wiederherstellen">Automatisch</button>
+      <span class="spacer"></span>
+      <button id="place-cancel">Abbrechen</button>
+      <button id="place-save" class="primary" disabled>Speichern</button>
+    </div>
+  </dialog>
+
   <!-- Sicherung -->
   <dialog id="backup-dlg" class="wide">
     <h3>Eigene Einträge sichern</h3>
-    <p class="muted">Alben, Favoriten und von Hand gesetzte Daten gibt es nur in diesem Programm, nicht in OneDrive.
+    <p class="muted">Alben, Favoriten und von Hand gesetzte Daten und Orte gibt es nur in diesem Programm, nicht in OneDrive.
       Eine Sicherung ist eine kleine Datei, die sich auch auf einem anderen PC wieder einspielen lässt.</p>
     <h4>Sicherung speichern</h4>
     <form id="backup-form" class="path-form">

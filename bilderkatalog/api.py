@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import (
-    __version__, albums, config, dates, db, duplicates, export, geocode, local_source, queries, sicherung,
+    __version__, albums, config, dates, db, duplicates, export, geocode, local_source, places, queries, sicherung,
     sync, updates, winfiles,
 )
 from .auth import Auth, AuthError
@@ -119,6 +119,10 @@ class FavoriteIn(SelectionIn):
 
 class DateIn(SelectionIn):
     date: str = ""
+
+
+class PlaceIn(SelectionIn):
+    place: dict | None = None    # lat, lon, city, region, country_code; None = Ort entfernen
 
 
 class BackupIn(BaseModel):
@@ -381,7 +385,22 @@ def create_app(state: State | None = None) -> FastAPI:
             raise HTTPException(404)
         result["copies"] = duplicates.copies_of(conn, photo_id) if result["dup_group"] else []
         result["date_precision"] = dates.precision_of(conn, photo_id)
+        result["place_manual"] = places.is_manual(conn, photo_id)
         return result
+
+    @app.get("/api/places/search")
+    def search_places(q: str = "", conn=Conn):
+        return places.search(conn, q)
+
+    @app.post("/api/places")
+    def set_places(body: PlaceIn, conn=Conn):
+        return {"changed": places.set_place(conn, _selection(conn, body), body.place)}
+
+    @app.post("/api/places/reset")
+    def reset_places(body: SelectionIn, conn=Conn):
+        changed = places.reset(conn, _selection(conn, body))
+        geocode.geocode_pending(conn)
+        return {"changed": changed}
 
     @app.post("/api/favorites")
     def favorites(body: FavoriteIn, conn=Conn):

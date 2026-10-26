@@ -167,7 +167,7 @@ def _window() -> int:
 
 
 def _auto_backup(state) -> None:
-    """Alben, Favoriten und Datumskorrekturen beim Beenden sichern (nur bei Änderungen)."""
+    """Alben, Favoriten, eigene Daten und Orte beim Beenden sichern (nur bei Änderungen)."""
     from . import sicherung
 
     try:

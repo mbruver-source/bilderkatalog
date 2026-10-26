@@ -14,7 +14,7 @@ Der Bilderkatalog hilft dir, viele tausend Fotos in deinem OneDrive (oder in jed
 6. [Bilder, die nur online liegen](#6-bilder-die-nur-online-liegen)
 7. [Alben und Favoriten](#7-alben-und-favoriten)
 8. [Doppelte Dateien](#8-doppelte-dateien)
-9. [Aufnahmedatum korrigieren](#9-aufnahmedatum-korrigieren)
+9. [Datum und Ort korrigieren](#9-datum-und-ort-korrigieren)
 10. [Ereignisse](#10-ereignisse)
 11. [Auswählen und als ZIP exportieren](#11-auswählen-und-als-zip-exportieren)
 12. [Deine Daten und Sicherung](#12-deine-daten-und-sicherung)
@@ -78,7 +78,7 @@ Mit **Entfernen** nimmst du einen Ordner wieder aus dem Katalog. Die Dateien sel
 - Mit den **Pfeiltasten** ← → oder den Pfeilen am Rand blätterst du weiter, **Esc** schließt.
 - Rechts stehen alle Angaben: Aufnahmezeit und Datumsquelle, Ort, GPS, Kamera, Größe, Ordner und die Alben, in denen das Bild liegt. Gibt es die Datei mehrfach, stehen dort auch alle Exemplare.
 - **☆ Als Favorit markieren** (oder Taste <kbd>F</kbd>) vergibt einen Stern.
-- **Im Explorer zeigen** öffnet den Ordner mit der Datei, **Zu Album …** legt das Bild in ein Album, **Datum ändern …** korrigiert das Aufnahmedatum.
+- **Im Explorer zeigen** öffnet den Ordner mit der Datei, **Zu Album …** legt das Bild in ein Album, **Datum ändern …** und **Ort ändern …** korrigieren Aufnahmedatum und Ort.
 
 ![Großansicht mit allen Angaben zum Bild](bilder/grossansicht.jpg)
 
@@ -100,7 +100,7 @@ Ein Klick auf einen Eintrag in der Seitenleiste zeigt nur die passenden Bilder. 
 | **Orte** | Länder, darunter die Städte (aus den GPS-Daten) |
 | **Ordner** | die Ordner, in denen die Bilder liegen |
 | **Kameras** | Kamera- und Handymodelle |
-| **Prüfen** | *Ohne Aufnahmedatum*, *Ohne GPS*, *Videos*, *Doppelte Dateien*, *Datum von Hand gesetzt* und *Nur online, Details fehlen* |
+| **Prüfen** | *Ohne Aufnahmedatum*, *Ohne GPS*, *Videos*, *Doppelte Dateien*, *Datum/Ort von Hand gesetzt* und *Nur online, Details fehlen* |
 
 Was du gerade siehst, kannst du komplett weiterverwenden:
 
@@ -145,7 +145,7 @@ Alben sind virtuelle Ordner. Ein Bild kann in beliebig vielen Alben liegen, ohne
 
 **Favoriten** sind der schnellste Weg, die schönsten Bilder zu markieren: auf den Stern oben rechts in einer Kachel klicken (erscheint beim Darüberfahren), in der Großansicht auf **☆ Als Favorit markieren** oder die Taste <kbd>F</kbd> drücken. Für viele Bilder auf einmal: auswählen und **★ Favorit** in der Auswahlleiste. Sind schon alle ausgewählten Bilder Favoriten, entfernt derselbe Knopf den Stern wieder. **★ Favoriten** oben in der Seitenleiste zeigt alle.
 
-Alben und Favoriten gibt es nur im Programm. Sichere sie ab und zu, siehe [Sicherung](#sicherung).
+Alben, Favoriten und eigene Daten und Orte gibt es nur im Programm. Sichere sie ab und zu, siehe [Sicherung](#sicherung).
 
 ## 8. Doppelte Dateien
 
@@ -160,7 +160,9 @@ Wer Fotos vom Handy, von der SD-Karte und aus Sicherungen zusammenführt, hat vi
 
 > Neu komprimierte Fassungen, etwa Bilder, die über einen Messenger verschickt wurden, sind andere Dateien und gelten nicht als Kopie.
 
-## 9. Aufnahmedatum korrigieren
+## 9. Datum und Ort korrigieren
+
+### Aufnahmedatum
 
 Eingescannte Papierfotos oder Bilder ohne Kameradaten landen sonst unter dem Datum, an dem die Datei kopiert wurde. Du kannst das Datum von Hand setzen:
 
@@ -173,6 +175,22 @@ Ein ungefähres Datum wird zum Anfang des Jahres bzw. Monats einsortiert und in 
 - Das Datum gilt nur im Katalog, **die Datei bleibt unverändert**. Erneutes Einlesen oder Nachladen überschreibt es nicht.
 - **Automatisch** im selben Dialog stellt das ursprüngliche Datum (Kamera, Dateiname oder Dateizeit) wieder her.
 - Bilder mit Datum von Hand zählen nicht zu den [Ereignissen](#10-ereignisse), weil ihre Uhrzeit meist nicht stimmt.
+
+### Ort
+
+Viele Bilder haben keine GPS-Daten, etwa von älteren Kameras, eingescannte Fotos oder Bilder aus Messengern. Manchmal stimmt die Position auch nicht. So setzt du den Ort:
+
+1. Bilder auswählen und in der Auswahlleiste **Ort …** wählen, oder in der Großansicht **Ort hinzufügen …** bzw. **Ort ändern …**. Ein guter Startpunkt ist **Prüfen → Ohne GPS**.
+2. Den Ort eintippen. Vorgeschlagen werden zuerst Orte, die schon in deinem Katalog vorkommen, dann Orte aus dem Ortsverzeichnis. Gängige deutsche Namen wie „Lissabon“ oder „München“ werden erkannt, Umlaute kannst du so oder als „oe“ schreiben.
+3. Den richtigen Treffer anklicken und **Speichern** (oder Doppelklick bzw. <kbd>Enter</kbd>).
+
+Statt eines Namens kannst du auch **Koordinaten** eingeben, z. B. `38.7223, -9.1393`. Die bekommst du aus jeder Karten-App, oft per Rechtsklick auf die Stelle. Das ist genauer, wenn es um einen bestimmten Strand oder ein Ferienhaus geht. Der Ortsname wird dann automatisch bestimmt.
+
+- **Ort entfernen** löscht eine falsche Position, das Bild hat danach keinen Ort.
+- **Automatisch** stellt die GPS-Position aus der Datei wieder her.
+- Wie das Datum gilt der Ort nur im Katalog, **die Datei bleibt unverändert**, und erneutes Einlesen überschreibt ihn nicht. Alle so geänderten Bilder zeigt **Prüfen → Ort von Hand gesetzt**, in der Großansicht steht „(von Hand)“ dahinter.
+
+> Das Ortsverzeichnis kennt Orte ab etwa 1000 Einwohnern. Kleinere Orte findest du über den nächsten größeren Ort oder über Koordinaten.
 
 ## 10. Ereignisse
 
@@ -215,15 +233,15 @@ Alles bleibt auf deinem Rechner, im Ordner
 %LOCALAPPDATA%\bilderkatalog
 ```
 
-Dort liegen der Katalog (`katalog.db` mit Alben, Favoriten und Angaben zu den Bildern), die Vorschaubilder (`thumbs`, etwa 20 KB pro Bild), die automatischen Sicherungen (`sicherungen`) und eine Protokolldatei. Den genauen Pfad zeigt das Versionsfenster (Klick auf die Versionsnummer oben rechts).
+Dort liegen der Katalog (`katalog.db` mit Alben, Favoriten, eigenen Daten und Orten sowie den Angaben zu den Bildern), die Vorschaubilder (`thumbs`, etwa 20 KB pro Bild), die automatischen Sicherungen (`sicherungen`) und eine Protokolldatei. Den genauen Pfad zeigt das Versionsfenster (Klick auf die Versionsnummer oben rechts).
 
 - Das Programm schickt **keine Bilder, Ortsdaten oder Dateinamen** ins Internet. Nur **Nach Updates suchen** fragt auf deinen Klick hin bei GitHub nach der neuesten Versionsnummer.
 - Das Programm ist nur auf deinem eigenen Rechner erreichbar, nicht im Netzwerk.
-- **Zurücksetzen:** Programm schließen und den Ordner oben löschen. Beim nächsten Start beginnt der Katalog leer, deine Bilder sind davon nicht betroffen. Alben, Favoriten und Datumskorrekturen sind dann aber weg, also vorher sichern.
+- **Zurücksetzen:** Programm schließen und den Ordner oben löschen. Beim nächsten Start beginnt der Katalog leer, deine Bilder sind davon nicht betroffen. Alben, Favoriten sowie eigene Daten und Orte sind dann aber weg, also vorher sichern.
 
 ### Sicherung
 
-Alben, Favoriten und von Hand gesetzte Daten stehen nur im Katalog auf diesem PC, **nicht in OneDrive**. Geht der PC verloren, sind sie weg, deine Bilder natürlich nicht. Deshalb gibt es eine Sicherung:
+Alben, Favoriten und von Hand gesetzte Daten und Orte stehen nur im Katalog auf diesem PC, **nicht in OneDrive**. Geht der PC verloren, sind sie weg, deine Bilder natürlich nicht. Deshalb gibt es eine Sicherung:
 
 - **Automatisch:** Beim Schließen des Programms legt es eine Sicherung im Datenordner an, wenn sich etwas geändert hat. Die letzten 20 bleiben erhalten. Sie schützen vor Versehen, etwa einem gelöschten Album, aber nicht vor dem Verlust des PCs.
 - **Von Hand:** in der Seitenleiste unter *Alben* auf **Sichern / Wiederherstellen …**, dann **Speichern**. Die kleine Datei `Bilderkatalog-Sicherung_….json` landet im angegebenen Ordner. Lege sie an einen sicheren Ort, z. B. auf einen USB-Stick oder selbst in deinen OneDrive.
@@ -255,7 +273,7 @@ Das Programm braucht den *Microsoft Edge WebView2 Runtime*, der in Windows 10 un
 Liegt es nur online (Wolkensymbol), läuft vermutlich der OneDrive-Client nicht, siehe [Bilder, die nur online liegen](#6-bilder-die-nur-online-liegen). Für Formate, die das Programm nicht selbst lesen kann (z. B. RAW, HEIC, Videos), nutzt es die Vorschau von Windows. Zeigt auch der Explorer kein Vorschaubild, fehlt Windows der passende Baustein (bei HEIC die „HEIF-Bilderweiterungen“ aus dem Microsoft Store).
 
 **Ein Bild steht im falschen Jahr.**
-In der Großansicht zeigt *Datumsquelle*, woher das Datum stammt. Bei „Dateizeit“ hatte das Bild keine Kameradaten. Die Liste **Prüfen → Ohne Aufnahmedatum** zeigt alle solchen Bilder. Korrigieren kannst du das Datum mit [Datum ändern](#9-aufnahmedatum-korrigieren).
+In der Großansicht zeigt *Datumsquelle*, woher das Datum stammt. Bei „Dateizeit“ hatte das Bild keine Kameradaten. Die Liste **Prüfen → Ohne Aufnahmedatum** zeigt alle solchen Bilder. Korrigieren kannst du das Datum mit [Datum ändern](#9-datum-und-ort-korrigieren).
 
 **Ein Bild erscheint doppelt.**
 Dann liegt die Datei in mehreren Ordnern. Schalte **Kopien ausblenden** ein, siehe [Doppelte Dateien](#8-doppelte-dateien).

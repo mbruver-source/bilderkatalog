@@ -6,7 +6,7 @@ import shutil
 
 import pytest
 
-from bilderkatalog import albums, dates, duplicates, local_source, queries, sicherung, winfiles
+from bilderkatalog import albums, dates, duplicates, geocode, local_source, places, queries, sicherung, winfiles
 from bilderkatalog.queries import Filter
 
 from .test_local import make_jpeg, rows, scan
@@ -125,6 +125,64 @@ def test_replaced_file_keeps_favorite_date_and_album(conn, library):
     assert albums.list_albums(conn)[0]["n"] == 1
 
 
+# -- Ort von Hand -------------------------------------------------------------------
+
+LISSABON = {"lat": 38.71667, "lon": -9.13333, "city": "Lisbon", "region": "Lisbon", "country_code": "PT"}
+
+
+def test_search_places_finds_german_names_and_coordinates(conn):
+    assert places.search(conn, "Lissabon")[0]["country_code"] == "PT"
+    assert places.search(conn, "Köln")[0]["city"] == "Koeln"
+    assert places.search(conn, "rosbach vor der höhe")[0]["city"] == "Rosbach vor der Hohe"
+    hit = places.search(conn, "48.8566, 2.3522")
+    assert hit[0]["city"] == "Paris" and hit[0]["source"] == "coords"
+    assert places.parse_coords("48,8566 2,3522") == (48.8566, 2.3522)
+    assert places.parse_coords("100, 2") is None and places.search(conn, "x") == []
+
+
+def test_manual_place_survives_rescan_geocoding_and_enrich(conn, library, monkeypatch):
+    scan(conn, library)
+    geocode.geocode_pending(conn)
+    gps_id = rows(conn)["IMG_0002.jpg"]["id"]  # kein GPS in diesem Testbild → Ort hinzufügen
+    assert places.set_place(conn, [gps_id], LISSABON) == 1
+    path = library / "Urlaub" / "IMG_0002.jpg"
+    os.utime(path, (path.stat().st_atime, path.stat().st_mtime + 60))
+    scan(conn, library)
+    geocode.geocode_pending(conn)
+    photo = rows(conn)["IMG_0002.jpg"]
+    assert (photo["city"], photo["country_code"], photo["lat"]) == ("Lisbon", "PT", 38.71667)
+    assert queries.list_photos(conn, Filter(place_manual=True))["total"] == 1
+    assert queries.list_photos(conn, Filter(country="PT"))["total"] == 1
+
+    assert places.reset(conn, [gps_id]) == 1
+    geocode.geocode_pending(conn)
+    photo = rows(conn)["IMG_0002.jpg"]
+    assert photo["lat"] is None and photo["city"] is None
+
+
+def test_remove_wrong_place_and_reset_restores_gps(conn, tmp_path):
+    make_jpeg(tmp_path / "Fotos" / "gps.jpg", "2020:01:01 10:00:00", (48.8566, 2.3522))
+    scan(conn, tmp_path / "Fotos")
+    geocode.geocode_pending(conn)
+    photo_id = rows(conn)["gps.jpg"]["id"]
+    places.set_place(conn, [photo_id], None)  # falsche GPS-Position: Ort entfernen
+    scan(conn, tmp_path / "Fotos")
+    geocode.geocode_pending(conn)
+    assert rows(conn)["gps.jpg"]["city"] is None and rows(conn)["gps.jpg"]["lat"] is None
+    places.reset(conn, [photo_id])
+    geocode.geocode_pending(conn)
+    assert rows(conn)["gps.jpg"]["city"] == "Paris"
+
+
+def test_place_from_coordinates_only(conn, library):
+    scan(conn, library)
+    photo_id = rows(conn)["scan_001.jpg"]["id"]
+    places.set_place(conn, [photo_id], {"lat": 48.8566, "lon": 2.3522})
+    assert (rows(conn)["scan_001.jpg"]["city"], rows(conn)["scan_001.jpg"]["country_code"]) == ("Paris", "FR")
+    with pytest.raises(ValueError):
+        places.set_place(conn, [photo_id], {"lat": 123, "lon": 0})
+
+
 # -- Sicherung --------------------------------------------------------------------
 
 def _own_entries(conn):
@@ -135,6 +193,7 @@ def _own_entries(conn):
     albums.add_photos(conn, album["id"], [urlaub, scan_id])
     albums.set_favorite(conn, [urlaub], True)
     dates.set_date(conn, [scan_id], "14.07.1998")
+    places.set_place(conn, [scan_id], LISSABON)
 
 
 def test_backup_roundtrip_on_other_pc(tmp_path, library):
@@ -146,7 +205,7 @@ def test_backup_roundtrip_on_other_pc(tmp_path, library):
     _own_entries(first)
     data = json.loads(json.dumps(sicherung.collect(first)))
     first.close()
-    assert sicherung.counts(data) == {"albums": 1, "favorites": 1, "dates": 1}
+    assert sicherung.counts(data) == {"albums": 1, "favorites": 1, "dates": 1, "places": 1}
 
     # anderer PC: andere Datei-IDs → Zuordnung über Ordner und Name
     for ref in data["photos"]:
@@ -155,14 +214,15 @@ def test_backup_roundtrip_on_other_pc(tmp_path, library):
         for album in data["albums"]:
             album["photos"] = [ref["id"] if p == old else p for p in album["photos"]]
         data["favorites"] = [ref["id"] if p == old else p for p in data["favorites"]]
-        for entry in data["dates"]:
+        for entry in data["dates"] + data["places"]:
             entry["photo"] = ref["id"] if entry["photo"] == old else entry["photo"]
 
     second = db.connect(tmp_path / "b.db")
     db.init(second)
     scan(second, library)
     result = sicherung.restore(second, data)
-    assert result == {"albums_new": 1, "assigned": 2, "favorites": 1, "dates": 1, "not_found": 0}
+    assert result == {"albums_new": 1, "assigned": 2, "favorites": 1, "dates": 1, "places": 1, "not_found": 0}
+    assert (rows(second)["scan_001.jpg"]["city"], rows(second)["scan_001.jpg"]["country_code"]) == ("Lisbon", "PT")
     photos = rows(second)
     assert photos["IMG_0002.jpg"]["favorite"] == 1
     assert photos["scan_001.jpg"]["taken_at"] == "1998-07-14T12:00:00"
@@ -219,3 +279,8 @@ def test_api_favorites_dates_backup(tmp_path, library):
     data = json.loads(open(saved["path"], encoding="utf-8").read())
     assert client.post("/api/restore", json={"data": data}, headers=hdr).json()["not_found"] == 0
     assert client.post("/api/restore", json={"auto": "../../etc/passwd"}, headers=hdr).status_code == 400
+
+    assert client.get("/api/places/search", params={"q": "Lissabon"}).json()[0]["country_code"] == "PT"
+    assert client.post("/api/places", json={"ids": [scan_id], "place": LISSABON}, headers=hdr).json() == {"changed": 1}
+    assert client.get(f"/api/photos/{scan_id}").json()["place_manual"] is True
+    assert client.post("/api/places/reset", json={"ids": [scan_id]}, headers=hdr).json() == {"changed": 1}

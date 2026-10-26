@@ -16,7 +16,7 @@ SORTS = {
 }
 DUP_ORDER = "p.dup_group, p.dup_rank"  # Kopien direkt nebeneinander
 
-BOOL_FILTERS = ("no_date", "no_gps", "partial", "favorite", "dups", "unique", "date_manual")
+BOOL_FILTERS = ("no_date", "no_gps", "partial", "favorite", "dups", "unique", "date_manual", "place_manual")
 
 # Kameraname ohne doppelten Hersteller ("Canon" + "Canon EOS 600D" → "Canon EOS 600D")
 CAMERA = (
@@ -51,6 +51,7 @@ class Filter:
     dups: bool = False             # nur Dateien, die mehrfach vorhanden sind
     unique: bool = False           # Kopien ausblenden (nur Hauptexemplare)
     date_manual: bool = False      # Datum von Hand gesetzt
+    place_manual: bool = False     # Ort von Hand gesetzt oder entfernt
 
     @classmethod
     def from_dict(cls, data: dict) -> "Filter":
@@ -114,6 +115,8 @@ class Filter:
             clauses.append("(p.dup_rank IS NULL OR p.dup_rank = 0)")
         if self.date_manual:
             clauses.append("p.date_source = 'manual'")
+        if self.place_manual:
+            clauses.append("p.id IN (SELECT photo_id FROM place_override)")
         return " AND ".join(clauses), params
 
 
@@ -185,7 +188,8 @@ def facets(conn: sqlite3.Connection) -> dict:
             "COALESCE(SUM(date_source = 'manual'), 0) AS date_manual, "
             "COALESCE(SUM(dup_group IS NOT NULL), 0) AS dup_files, "
             "COALESCE(SUM(dup_rank > 0), 0) AS dup_copies, "
-            "COUNT(DISTINCT dup_group) AS dup_groups "
+            "COUNT(DISTINCT dup_group) AS dup_groups, "
+            "COALESCE(SUM(id IN (SELECT photo_id FROM place_override)), 0) AS place_manual "
             "FROM photo WHERE deleted = 0"
         ).fetchone()),
     }

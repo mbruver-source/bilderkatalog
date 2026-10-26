@@ -1,4 +1,4 @@
-"""Sicherung und Wiederherstellung der eigenen Einträge: Alben, Favoriten, Datumskorrekturen.
+"""Sicherung und Wiederherstellung der eigenen Einträge: Alben, Favoriten, Datum und Ort.
 
 Diese Angaben gibt es nur in der lokalen Datenbank. Die Sicherung ist eine kleine
 JSON-Datei, die sich auch auf einem anderen PC wieder einspielen lässt: Bilder
@@ -12,7 +12,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from . import __version__, config, dates
+from . import __version__, config, dates, places
 
 FORMAT = "bilderkatalog-sicherung"
 AUTO_KEEP = 20  # so viele automatische Sicherungen bleiben erhalten
@@ -36,6 +36,8 @@ def collect(conn: sqlite3.Connection) -> dict:
     favorites = [ref(r["id"]) for r in conn.execute("SELECT id FROM photo WHERE favorite = 1 ORDER BY id")]
     manual = [{"photo": ref(r["photo_id"]), "taken_at": r["taken_at"], "precision": r["precision"]}
               for r in conn.execute("SELECT photo_id, taken_at, precision FROM date_override ORDER BY photo_id")]
+    manual_places = [{"photo": ref(r["photo_id"]), **{k: r[k] for k in ("lat", "lon", "city", "region", "country_code")}}
+                     for r in conn.execute("SELECT * FROM place_override ORDER BY photo_id")]
     return {
         "format": FORMAT,
         "version": 1,
@@ -45,11 +47,13 @@ def collect(conn: sqlite3.Connection) -> dict:
         "albums": albums,
         "favorites": favorites,
         "dates": manual,
+        "places": manual_places,
     }
 
 
 def counts(data: dict) -> dict:
-    return {"albums": len(data["albums"]), "favorites": len(data["favorites"]), "dates": len(data["dates"])}
+    return {"albums": len(data["albums"]), "favorites": len(data["favorites"]), "dates": len(data["dates"]),
+            "places": len(data.get("places", []))}
 
 
 def write(conn: sqlite3.Connection, target_dir: Path) -> dict:
@@ -87,7 +91,7 @@ def auto_backup(conn: sqlite3.Connection) -> Path | None:
 
 
 def _content(data: dict) -> tuple:
-    return tuple(json.dumps(data.get(k), sort_keys=True) for k in ("photos", "albums", "favorites", "dates"))
+    return tuple(json.dumps(data.get(k), sort_keys=True) for k in ("photos", "albums", "favorites", "dates", "places"))
 
 
 def list_auto() -> list[dict]:
@@ -143,8 +147,15 @@ def restore(conn: sqlite3.Connection, data: dict) -> dict:
             conn.execute("UPDATE date_override SET precision = ? WHERE photo_id = ?",
                          (entry.get("precision", "time"), found[entry["photo"]]))
     conn.commit()
+
+    placed = 0
+    for entry in data.get("places", []):
+        if entry["photo"] in found:
+            place = None if entry.get("lat") is None else {k: entry.get(k) for k in
+                                                          ("lat", "lon", "city", "region", "country_code")}
+            placed += places.set_place(conn, [found[entry["photo"]]], place)
     return {"albums_new": albums_new, "assigned": assigned, "favorites": len(favorites),
-            "dates": dated, "not_found": len(missing)}
+            "dates": dated, "places": placed, "not_found": len(missing)}
 
 
 def _match(conn: sqlite3.Connection, refs: list[dict]) -> dict[str, str]:

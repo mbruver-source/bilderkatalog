@@ -5,12 +5,12 @@ Ein lokales Programm, das deine Bilder und Videos in OneDrive über ihre **Metad
 - **Sortieren und Filtern** nach Datum, Jahr, Monat, Ort (Land/Stadt), Ordner, Kamera und Dateiname
 - **Virtuelle Ordner (Alben) und Favoriten:** Bilder frei zusammenstellen oder mit einem Stern markieren. Ein Bild kann in mehreren Alben liegen.
 - **Doppelte Dateien** erkennen (gleiche Größe und gleiche Aufnahmezeit oder gleicher Name) und auf Wunsch überall ausblenden. Gelöscht wird nichts.
-- **Aufnahmedatum korrigieren**, z. B. für eingescannte Fotos („07.1998“). Gilt nur im Katalog.
+- **Aufnahmedatum und Ort korrigieren oder ergänzen**, z. B. für eingescannte Fotos („07.1998“) oder Bilder ohne GPS. Ortssuche offline mit deutschen Namen oder per Koordinaten. Gilt nur im Katalog.
 - **Vorschaubilder auch für „Nur online“-Dateien und Videos**, ohne Download (Windows/OneDrive liefert sie aus der Cloud)
 - **Ereignisse:** Bilder, die zeitlich und örtlich zusammengehören (z. B. ein Urlaubstag), werden automatisch erkannt und lassen sich als Album übernehmen.
 - **ZIP-Export** einer Auswahl, eines Albums oder der aktuellen Ansicht, wahlweise flach, nach Jahr/Monat oder in der Ordnerstruktur
-- **Prüflisten:** ohne Aufnahmedatum, ohne GPS, Videos, doppelte Dateien, Datum von Hand gesetzt, Nur-online-Bilder ohne Details
-- **Sicherung** von Alben, Favoriten und Datumskorrekturen als kleine Datei, die sich auch auf einem anderen PC einspielen lässt
+- **Prüflisten:** ohne Aufnahmedatum, ohne GPS, Videos, doppelte Dateien, Datum/Ort von Hand gesetzt, Nur-online-Bilder ohne Details
+- **Sicherung** von Alben, Favoriten, Datums- und Ortskorrekturen als kleine Datei, die sich auch auf einem anderen PC einspielen lässt
 
 > **Deine Bilder werden nicht verändert.** Alben, Gruppen und Sortierungen existieren nur in einer lokalen SQLite-Datenbank. Das Programm liest Dateien ausschließlich. Für „Nur online“-Dateien setzt es höchstens den Status „Speicherplatz freigeben“ zurück, und den hatten sie vorher ohnehin.
 

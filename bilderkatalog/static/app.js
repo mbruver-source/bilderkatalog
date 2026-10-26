@@ -276,7 +276,7 @@ function renderSidebar() {
   nav.append(section("Alben", state.albums.length,
     el("ul", {}, state.albums.map((a) => el("li", {}, navItem(a.name, a.n, { album: a.id }, `Album: ${a.name}`)))),
     el("button", { class: "link new-album", onclick: newAlbum }, "+ Neues Album"),
-    el("button", { class: "link new-album", onclick: openBackup, title: "Alben, Favoriten und Datumskorrekturen sichern" }, "Sichern / Wiederherstellen …")));
+    el("button", { class: "link new-album", onclick: openBackup, title: "Alben, Favoriten, eigene Daten und Orte sichern" }, "Sichern / Wiederherstellen …")));
 
   // Zeitleiste: Jahr → Monat
   const years = new Map();
@@ -323,12 +323,14 @@ function renderSidebar() {
   nav.append(section("Prüfen", null, el("ul", {},
     el("li", {}, navItem("Ohne Aufnahmedatum", f.special.no_date, { no_date: true }, "Ohne EXIF-Aufnahmedatum",
       { tooltip: "Kein EXIF-Datum: Datum stammt aus Dateiname oder Dateizeit" })),
-    el("li", {}, navItem("Ohne GPS", f.special.no_gps, { no_gps: true }, "Ohne GPS-Position")),
+    el("li", {}, navItem("Ohne GPS", f.special.no_gps, { no_gps: true }, "Ohne GPS-Position",
+      { tooltip: "Bilder ohne Ort. Auswählen und „Ort …“ ergänzt ihn." })),
     el("li", {}, navItem("Videos", f.special.videos, { media: "video" }, "Videos")),
     f.special.dup_groups ? el("li", {}, navItem("Doppelte Dateien", f.special.dup_copies, { dups: true }, "Doppelte Dateien",
       { tooltip: `${f.special.dup_groups.toLocaleString("de-DE")} Dateien sind mehrfach vorhanden, zusammen ${f.special.dup_copies.toLocaleString("de-DE")} Kopien. ` +
         "Gleich groß und gleiche Aufnahmezeit oder gleicher Name. Nichts wird gelöscht." })) : null,
     f.special.date_manual ? el("li", {}, navItem("Datum von Hand gesetzt", f.special.date_manual, { date_manual: true }, "Datum von Hand gesetzt")) : null,
+    f.special.place_manual ? el("li", {}, navItem("Ort von Hand gesetzt", f.special.place_manual, { place_manual: true }, "Ort von Hand gesetzt")) : null,
     f.special.partial ? el("li", {}, navItem("Nur online, Details fehlen", f.special.partial, { partial: true }, "Nur online – Details fehlen",
       { tooltip: "Nur das Aufnahmedatum ist bekannt. „Details nachladen“ ergänzt Ort, Kamera und Vorschau." })) : null,
   )));
@@ -535,6 +537,77 @@ function openDate(selection, info, current = "") {
   form.date.focus();
 }
 
+// ---------- Ort setzen ----------
+
+$("#sel-place").addEventListener("click", () => openPlace({ ids: [...state.selected] }, `${files(state.selected.size)} ausgewählt`));
+
+function openPlace(selection, info) {
+  const dlg = $("#place-dlg");
+  let chosen;
+  let timer;
+  let generation = 0;
+  $("#place-info").textContent = info;
+  $("#place-q").value = "";
+  $("#place-results").replaceChildren();
+  $("#place-error").textContent = "";
+  $("#place-save").disabled = true;
+
+  const choose = (place, node) => {
+    chosen = place;
+    $("#place-results").querySelectorAll("button").forEach((b) => b.classList.toggle("chosen", b === node));
+    $("#place-save").disabled = false;
+  };
+  $("#place-q").oninput = () => {
+    clearTimeout(timer);
+    chosen = undefined;
+    $("#place-save").disabled = true;
+    timer = setTimeout(async () => {
+      const mine = ++generation;
+      const q = $("#place-q").value.trim();
+      if (q.length < 2) return $("#place-results").replaceChildren();
+      try {
+        const results = await api(`/api/places/search?${qs({ q })}`);
+        if (mine !== generation) return;
+        $("#place-results").replaceChildren(...(results.length ? results.map((p) => {
+          const label = [p.city, p.region, countryName(p.country_code)].filter(Boolean).join(", ");
+          const extra = p.source === "catalog" ? ` · ${p.n.toLocaleString("de-DE")} Bilder im Katalog`
+            : p.source === "coords" ? ` · ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}` : "";
+          const button = el("button", { type: "button", onclick: () => choose(p, button), ondblclick: save },
+            el("span", {}, label || "Unbekannter Ort"), el("span", { class: "muted" }, extra));
+          return el("li", {}, button);
+        }) : [el("li", { class: "muted" }, "Nichts gefunden. Größere Orte heißen oft englisch (z. B. „Rome“), es hilft auch der Anfang des Namens.")]));
+        if (results.length === 1) choose(results[0], $("#place-results button"));
+      } catch (err) {
+        $("#place-error").textContent = err.message;
+      }
+    }, 250);
+  };
+
+  async function send(path, body, message) {
+    try {
+      const res = await api(path, { method: "POST", body });
+      dlg.close();
+      toast(message(res.changed));
+      clearSelection();
+      loadSidebar();
+      if ($("#lightbox").open) await refreshItem(state.items[state.lightboxIndex]);
+      else reload();
+    } catch (err) {
+      $("#place-error").textContent = err.message;
+    }
+  }
+  function save() {
+    if (chosen) send("/api/places", { ...selection, place: chosen }, (n) => `Ort für ${files(n)} gesetzt.`);
+  }
+  $("#place-save").onclick = save;
+  $("#place-q").onkeydown = (event) => { if (event.key === "Enter") { event.preventDefault(); save(); } };
+  $("#place-remove").onclick = () => send("/api/places", { ...selection, place: null }, (n) => `Ort bei ${files(n)} entfernt.`);
+  $("#place-reset").onclick = () => send("/api/places/reset", selection, (n) => `GPS-Position aus der Datei für ${files(n)} wiederhergestellt.`);
+  $("#place-cancel").onclick = () => dlg.close();
+  dlg.showModal();
+  $("#place-q").focus();
+}
+
 async function refreshItem(item) {
   const updated = await api(`/api/photos/${encodeURIComponent(item.id)}`);
   Object.assign(item, updated);
@@ -576,7 +649,7 @@ function refreshSelection() {
   $("#selbar").hidden = n === 0 && !state.selectMode;
   $("#sel-count").textContent = `${n} ausgewählt`;
   $("#sel-hint").hidden = n > 0;
-  for (const id of ["#sel-fav", "#sel-album", "#sel-date", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
+  for (const id of ["#sel-fav", "#sel-album", "#sel-date", "#sel-place", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
   $("#select-mode-btn").textContent = state.selectMode ? "Auswahl beenden" : "Auswählen";
   $("#select-mode-btn").classList.toggle("primary", Boolean(state.selectMode));
 }
@@ -668,7 +741,7 @@ async function openBackup() {
     const data = await api("/api/backups");
     list.replaceChildren(...(data.auto.length ? data.auto.map((b) => el("li", {},
       el("span", {}, formatDate(b.created), el("span", { class: "muted" },
-        `  · ${b.albums} Alben, ${b.favorites} Favoriten, ${b.dates} Daten`)),
+        `  · ${b.albums} Alben, ${b.favorites} Favoriten, ${b.dates} Daten, ${b.places} Orte`)),
       el("button", { class: "link", onclick: () => restoreBackup({ auto: b.file }) }, "Wiederherstellen"))) :
       [el("li", { class: "muted" }, "Noch keine.")]));
   } catch (err) {
@@ -681,7 +754,7 @@ $("#backup-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
     const r = await api("/api/backup", { method: "POST", body: { target_dir: event.target.target_dir.value || null } });
-    $("#backup-msg").textContent = `Gespeichert (${r.albums} Alben, ${r.favorites} Favoriten, ${r.dates} Daten): ${r.path}`;
+    $("#backup-msg").textContent = `Gespeichert (${r.albums} Alben, ${r.favorites} Favoriten, ${r.dates} Daten, ${r.places} Orte): ${r.path}`;
   } catch (err) {
     $("#backup-msg").textContent = err.message;
   }
@@ -704,7 +777,7 @@ async function restoreBackup(body) {
   msg.textContent = "Spiele Sicherung ein …";
   try {
     const r = await api("/api/restore", { method: "POST", body });
-    msg.textContent = `Fertig: ${r.albums_new} neue Alben, ${r.assigned} Albumzuordnungen, ${r.favorites} Favoriten, ${r.dates} Daten.` +
+    msg.textContent = `Fertig: ${r.albums_new} neue Alben, ${r.assigned} Albumzuordnungen, ${r.favorites} Favoriten, ${r.dates} Daten, ${r.places} Orte.` +
       (r.not_found ? ` ${r.not_found} Bilder wurden im Katalog nicht gefunden (Ordner noch nicht eingelesen?).` : "");
     await loadSidebar();
     reload();
@@ -797,7 +870,7 @@ async function renderLightbox() {
     ["Datei", detail.name],
     ["Aufgenommen", formatTaken(detail.taken_at, detail.date_precision)],
     ["Datumsquelle", sourceLabel],
-    ["Ort", detail.country_code ? place : "–"],
+    ["Ort", (detail.country_code ? place : "–") + (detail.place_manual ? " (von Hand)" : "")],
     ["GPS", detail.lat != null ? `${detail.lat.toFixed(5)}, ${detail.lon.toFixed(5)}` : "–"],
     ["Kamera", (detail.camera_model?.startsWith(detail.camera_make || "\u0000") ? detail.camera_model
       : [detail.camera_make, detail.camera_model].filter(Boolean).join(" ")) || "–"],
@@ -824,7 +897,8 @@ async function renderLightbox() {
       ? el("p", {}, el("button", { onclick: () => api(`/api/photos/${encodeURIComponent(item.id)}/reveal`, { method: "POST" }).catch((e) => toast(e.message)) }, "Im Explorer zeigen"))
       : detail.web_url ? el("a", { href: detail.web_url, target: "_blank", rel: "noopener" }, "In OneDrive öffnen ↗") : null,
     el("p", {}, el("button", { onclick: () => { $("#lightbox").close(); chooseAlbum({ ids: [item.id] }); } }, "Zu Album …"), " ",
-      el("button", { onclick: () => openDate({ ids: [item.id] }, item.name, dateText) }, "Datum ändern …")),
+      el("button", { onclick: () => openDate({ ids: [item.id] }, item.name, dateText) }, "Datum ändern …"), " ",
+      el("button", { onclick: () => openPlace({ ids: [item.id] }, item.name) }, detail.country_code ? "Ort ändern …" : "Ort hinzufügen …")),
   ].filter(Boolean));  // replaceChildren würde null als Text "null" einfügen
 }
 

@@ -240,7 +240,7 @@ def read_file(path: str, st: os.stat_result, scope_id: str) -> dict:
 
 def _upsert(conn: sqlite3.Connection, row: dict, previous: sqlite3.Row | None) -> None:
     # Wurde die Datei ersetzt (neue Datei-ID am selben Pfad), eigene Einträge übernehmen:
-    # Alben, Favorit und ein von Hand gesetztes Datum.
+    # Alben, Favorit sowie von Hand gesetztes Datum und Ort.
     if previous is not None and previous["id"] != row["id"]:
         new_id, old_id = row["id"], previous["id"]
         conn.execute("INSERT OR IGNORE INTO photo(id, name) VALUES (?, ?)", (new_id, row["name"]))
@@ -254,6 +254,11 @@ def _upsert(conn: sqlite3.Connection, row: dict, previous: sqlite3.Row | None) -
         conn.execute(
             "INSERT OR IGNORE INTO date_override(photo_id, taken_at, precision, auto_taken_at, auto_date_source) "
             "SELECT ?, taken_at, precision, auto_taken_at, auto_date_source FROM date_override WHERE photo_id = ?",
+            (new_id, old_id),
+        )
+        conn.execute(
+            "INSERT OR IGNORE INTO place_override(photo_id, lat, lon, city, region, country_code, auto_lat, auto_lon) "
+            "SELECT ?, lat, lon, city, region, country_code, auto_lat, auto_lon FROM place_override WHERE photo_id = ?",
             (new_id, old_id),
         )
         conn.execute("DELETE FROM photo WHERE id = ?", (old_id,))
