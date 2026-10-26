@@ -25,13 +25,14 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 NAME = "Bilderkatalog"
 
 # Anaconda/Miniforge als Basis-Python (auch hinter einer venv): _sqlite3 und _ctypes
-# brauchen sqlite3.dll bzw. ffi*.dll aus <basis>\Library\bin, die PyInstaller dort
+# brauchen sqlite3.dll bzw. ffi*.dll, _ssl (uvicorn, pywebview) libssl/libcrypto aus
+# <basis>\Library\bin, die PyInstaller dort
 # nicht sucht. Ohne diese DLLs startet die EXE, scheitert aber beim ersten Zugriff auf
 # die Datenbank (vom Selbsttest erkannt). Mit python.org-Python (CI) entfällt das.
 binaries = []
 _conda_bin = Path(sys.base_prefix) / "Library" / "bin"
 if _conda_bin.is_dir():
-    for muster in ("sqlite3.dll", "ffi*.dll", "libffi*.dll"):
+    for muster in ("sqlite3.dll", "ffi*.dll", "libffi*.dll", "libssl-*.dll", "libcrypto-*.dll"):
         binaries += [(str(dll), ".") for dll in _conda_bin.glob(muster)]
 
 # Lizenzhinweise der mitgelieferten Fremdsoftware, bei jedem Build neu aus den

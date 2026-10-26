@@ -103,6 +103,7 @@ def _window() -> int:
         print("pywebview ist nicht installiert – starte im Browser.", file=sys.stderr)
         return _serve(8765, False)
 
+    import os
     import socket
     import time
 
@@ -110,10 +111,27 @@ def _window() -> int:
 
     from .api import create_app
 
-    with socket.socket() as probe:  # freien Port wählen, damit mehrere Instanzen nicht kollidieren
+    if sys.platform == "win32":
+        # Laufkennung für den Installer (installer.iss, AppMutex) und gegen Doppelstart.
+        # Handles leben bis Prozessende.
+        laufkennung = _laufkennung_belegen()
+        if laufkennung is None:
+            _meldung("Der Bilderkatalog ist bereits geöffnet.\n\n"
+                     "Falls kein Fenster zu sehen ist, wird er gerade noch beendet – "
+                     "bitte in einigen Sekunden erneut starten.")
+            return 0
+
+    try:
+        app = create_app()
+    except Exception as err:
+        _meldung(f"Der Bilderkatalog konnte nicht starten:\n\n{err}\n\n"
+                 f"Details stehen in {config.data_dir() / 'bilderkatalog.log'}")
+        raise
+
+    with socket.socket() as probe:  # freien Port wählen
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
-    server = uvicorn.Server(uvicorn.Config(create_app(), host="127.0.0.1", port=port, log_level="warning"))
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True, name="server")
     thread.start()
     for _ in range(100):
@@ -128,18 +146,60 @@ def _window() -> int:
 
         # Eigene Taskleisten-Gruppe, sonst zeigt Windows das Python-Symbol
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Bilderkatalog")
-        # Laufkennung für den Installer (installer.iss, AppMutex): Setup und Deinstallation
-        # bitten dann zuerst darum, das Programm zu schließen. Handles leben bis Prozessende.
-        _laufkennung = [ctypes.windll.kernel32.CreateMutexW(None, False, name)  # noqa: F841
-                        for name in ("Bilderkatalog-Laufend", "Global\\Bilderkatalog-Laufend")]
     webview.create_window(
         "Bilderkatalog", f"http://127.0.0.1:{port}/",
         width=1400, height=900, min_size=(800, 500), text_select=True, maximized=True,
     )
     webview.start(icon=str(icon))  # blockiert, bis das Fenster geschlossen wird
+
+    # Fenster ist zu: laufendes Nachladen/Einlesen/Exportieren abbrechen, dann sicher beenden.
+    # Ohne das hält ein weiterlaufender Hintergrund-Download den Prozess (und die Datenbank) fest.
+    app.state.bk.shutdown()
     server.should_exit = True
     thread.join(timeout=5)
-    return 0
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except Exception:
+            pass
+    os._exit(0)
+
+
+def _laufkennung_belegen(wartezeit: float = 20.0) -> list | None:
+    """Belegt die Laufkennungen. Läuft schon eine Instanz (oder beendet sie sich gerade),
+    wird bis zu `wartezeit` Sekunden gewartet; danach None."""
+    import ctypes
+    import time
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    error_already_exists = 183
+    deadline = time.monotonic() + wartezeit
+    while True:
+        handles, belegt = [], False
+        for name in ("Bilderkatalog-Laufend", "Global\\Bilderkatalog-Laufend"):
+            handle = kernel32.CreateMutexW(None, False, name)
+            if handle and ctypes.get_last_error() == error_already_exists:
+                belegt = True
+            if handle:
+                handles.append(handle)
+        if not belegt:
+            return handles
+        for handle in handles:
+            kernel32.CloseHandle(handle)
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.5)
+
+
+def _meldung(text: str) -> None:
+    """Hinweisfenster – die EXE hat keine Konsole, Fehler wären sonst unsichtbar."""
+    print(text, file=sys.stderr)
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.user32.MessageBoxW(None, text, "Bilderkatalog", 0x40 | 0x10000)  # Info, Vordergrund
 
 
 def main_gui() -> int:

@@ -404,8 +404,10 @@ def enrich(
                     errors.append(error)
                 elif meta is not None:
                     _apply_enriched(conn, photo_id, meta)
+                    # sofort speichern: sonst bleibt die Datenbank gesperrt, solange
+                    # die übrigen Bilder des Blocks noch heruntergeladen werden
+                    conn.commit()
                 done += 1
-            conn.commit()
             if progress:
                 progress("Lade Details und Vorschau (Speicher wird danach wieder freigegeben) …", done, total)
     return {"processed": done, "errors": errors}

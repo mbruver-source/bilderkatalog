@@ -60,3 +60,43 @@ def test_static_files_are_versioned_and_revalidated(tmp_path):
     html = client.get("/").text
     assert '/static/app.js?v=' in html and '/static/style.css?v=' in html
     assert client.get("/static/app.js").headers["cache-control"] == "no-cache"
+
+
+def test_start_does_not_wait_for_write_lock(tmp_path):
+    """Regression: Hielt ein Hintergrund-Nachladen eine Schreibsperre, brach jeder Neustart
+    nach 30 s mit "database is locked" ab. Ein aktueller Katalog wird beim Start nur gelesen."""
+    import time
+
+    from bilderkatalog import db
+
+    State(tmp_path / "lock.db")
+    blocker = db.connect(tmp_path / "lock.db")
+    blocker.execute("BEGIN IMMEDIATE")  # wie ein Schreibvorgang eines anderen Prozesses
+    try:
+        conn = db.connect(tmp_path / "lock.db")
+        conn.execute("PRAGMA busy_timeout = 500")
+        started = time.monotonic()
+        db.init(conn)
+        assert time.monotonic() - started < 0.5
+        conn.close()
+    finally:
+        blocker.rollback()
+        blocker.close()
+
+
+def test_shutdown_cancels_running_jobs(tmp_path):
+    import threading
+
+    state = State(tmp_path / "jobs.db")
+    begonnen = threading.Event()
+
+    def lange_aufgabe(job):
+        begonnen.set()
+        while not job.cancelled():
+            threading.Event().wait(0.02)
+        raise InterruptedError("abgebrochen")
+
+    assert state.enrich_job.start(lange_aufgabe)
+    begonnen.wait(2)
+    state.shutdown(timeout=5)
+    assert state.enrich_job.state == "cancelled"

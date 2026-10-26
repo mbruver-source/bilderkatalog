@@ -111,6 +111,8 @@ MIGRATIONS = {
 def init(conn: sqlite3.Connection) -> None:
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_tables = conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'photo'").fetchone()
+    if has_tables and version == SCHEMA_VERSION:
+        return  # aktuell – nur lesen, damit der Start nie auf eine Schreibsperre wartet
     if has_tables:
         for target in sorted(MIGRATIONS):
             if version < target:

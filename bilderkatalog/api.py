@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sqlite3
 import threading
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -68,6 +69,16 @@ class State:
 
     def connect(self) -> sqlite3.Connection:
         return db.connect(self.db_path)
+
+    def shutdown(self, timeout: float = 15.0) -> None:
+        """Beim Schließen des Fensters: laufende Aufgaben abbrechen und kurz auf sie warten,
+        damit angefangene Downloads noch wieder freigegeben werden."""
+        jobs = (self.sync_job, self.enrich_job, self.export_job)
+        for job in jobs:
+            job.cancel()
+        deadline = time.monotonic() + timeout
+        while any(job.running for job in jobs) and time.monotonic() < deadline:
+            time.sleep(0.1)
 
     def busy(self) -> str | None:
         for job in (self.sync_job, self.enrich_job):
