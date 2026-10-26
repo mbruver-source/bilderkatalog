@@ -209,6 +209,7 @@ Ereignisse beziehen sich immer auf die aktuelle Ansicht. Erst ein Jahr anklicken
 
 - Jeder Klick auf ein Bild wählt es aus oder ab. **Shift-Klick** wählt alles bis zum zuletzt angeklickten Bild.
 - Unten erscheint die Auswahlleiste mit **★ Favorit**, **Zu Album …**, **Aus Album entfernen** (nur in einem Album), **Datum …**, **Als ZIP …**, **Details nachladen** und **Alle geladenen**.
+- Nach **★ Favorit**, **Zu Album …**, **Datum …** und **Ort …** bleibt die Auswahl erhalten. So setzt du zum Beispiel erst das Datum und gleich danach den Ort für dieselben Bilder. Die Ansicht bleibt dabei stehen und wird erst beim Beenden der Auswahl aktualisiert. Bilder können dann aus einer Liste wie *Ohne GPS* verschwinden.
 - **Auswahl beenden** oder **Esc** schaltet den Modus wieder aus.
 
 Auch ohne Auswahlmodus kannst du auf den kleinen Kreis oben links in einem Bild klicken.

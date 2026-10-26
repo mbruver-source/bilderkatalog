@@ -347,6 +347,7 @@ async function newAlbum() {
 // ---------- Raster ----------
 
 function setView(filter, title) {
+  state.viewStale = false;  // wird ohnehin neu geladen
   state.filter = filter;
   state.title = title;
   state.mode = "grid";
@@ -502,7 +503,6 @@ $("#sel-fav").addEventListener("click", async () => {
     return toast(err.message);
   }
   for (const item of state.items) if (state.selected.has(item.id)) item.favorite = value ? 1 : 0;
-  clearSelection();
   state.items.forEach((item) => { if (ids.includes(item.id)) updateTile(item); });
   loadSidebar();
 });
@@ -524,12 +524,9 @@ function openDate(selection, info, current = "") {
         ? await api("/api/dates/reset", { method: "POST", body: selection })
         : await api("/api/dates", { method: "POST", body: { ...selection, date: form.date.value } });
       dlg.close();
-      toast(action === "reset" ? `Automatisches Datum für ${files(res.changed)} wiederhergestellt.`
-        : `Datum für ${files(res.changed)} gesetzt.`);
-      clearSelection();
-      loadSidebar();
-      if ($("#lightbox").open) await refreshItem(state.items[state.lightboxIndex]);
-      else reload();
+      toast((action === "reset" ? `Automatisches Datum für ${files(res.changed)} wiederhergestellt.`
+        : `Datum für ${files(res.changed)} gesetzt.`) + keepHint());
+      await afterEdit();
     } catch (err) {
       $("#date-error").textContent = err.message;
     }
@@ -547,6 +544,7 @@ function openPlace(selection, info) {
   let chosen;
   let timer;
   let generation = 0;
+  api("/api/places/prepare", { method: "POST" }).catch(() => {});  // Ortsverzeichnis vorab laden
   $("#place-info").textContent = info;
   $("#place-q").value = "";
   $("#place-results").replaceChildren();
@@ -566,8 +564,11 @@ function openPlace(selection, info) {
       const mine = ++generation;
       const q = $("#place-q").value.trim();
       if (q.length < 2) return $("#place-results").replaceChildren();
+      // Die erste Suche nach dem Start lädt das Ortsverzeichnis (einige Sekunden)
+      const wait = setTimeout(() => { if (mine === generation) $("#place-results").replaceChildren(el("li", { class: "muted" }, "Suche …")); }, 300);
       try {
         const results = await api(`/api/places/search?${qs({ q })}`);
+        clearTimeout(wait);
         if (mine !== generation) return;
         $("#place-results").replaceChildren(...(results.length ? results.map((p) => {
           const label = [p.city, p.region, countryName(p.country_code)].filter(Boolean).join(", ");
@@ -579,6 +580,8 @@ function openPlace(selection, info) {
         }) : [el("li", { class: "muted" }, "Nichts gefunden. Größere Orte heißen oft englisch (z. B. „Rome“), es hilft auch der Anfang des Namens.")]));
         if (results.length === 1) choose(results[0], $("#place-results button"));
       } catch (err) {
+        clearTimeout(wait);
+        $("#place-results").replaceChildren();
         $("#place-error").textContent = err.message;
       }
     }, 250);
@@ -588,11 +591,8 @@ function openPlace(selection, info) {
     try {
       const res = await api(path, { method: "POST", body });
       dlg.close();
-      toast(message(res.changed));
-      clearSelection();
-      loadSidebar();
-      if ($("#lightbox").open) await refreshItem(state.items[state.lightboxIndex]);
-      else reload();
+      toast(message(res.changed) + keepHint());
+      await afterEdit();
     } catch (err) {
       $("#place-error").textContent = err.message;
     }
@@ -608,6 +608,18 @@ function openPlace(selection, info) {
   dlg.showModal();
   $("#place-q").focus();
 }
+
+// Nach Datum, Ort, Favorit oder Album bleibt die Auswahl erhalten, damit man gleich weitermachen
+// kann (z. B. erst Datum, dann Ort). Die Ansicht wird erst nach dem Auswählen neu geladen –
+// sonst verschwänden Bilder etwa aus "Ohne GPS", während sie noch ausgewählt sind.
+async function afterEdit() {
+  loadSidebar();
+  if ($("#lightbox").open) return refreshItem(state.items[state.lightboxIndex]);
+  if (state.selected.size) state.viewStale = true;
+  else reload();
+}
+
+const keepHint = () => (state.selected.size && !$("#lightbox").open ? " Die Auswahl bleibt für weitere Schritte erhalten." : "");
 
 async function refreshItem(item) {
   const updated = await api(`/api/photos/${encodeURIComponent(item.id)}`);
@@ -657,8 +669,8 @@ function refreshSelection() {
 
 function setSelectMode(on) {
   state.selectMode = on;
-  if (!on) state.selected.clear();
-  refreshSelection();
+  if (on) refreshSelection();
+  else clearSelection();
 }
 
 $("#select-mode-btn").addEventListener("click", () => setSelectMode(!state.selectMode));
@@ -667,6 +679,10 @@ function clearSelection() {
   state.selected.clear();
   state.lastIndex = null;
   refreshSelection();
+  if (state.viewStale) {  // Änderungen während der Auswahl jetzt anzeigen
+    state.viewStale = false;
+    reload();
+  }
 }
 
 $("#sel-clear").addEventListener("click", clearSelection);
@@ -717,8 +733,7 @@ function chooseAlbum(selection, suggestedName = "") {
         albumId = (await api("/api/albums", { method: "POST", body: { name } })).id;
       }
       const res = await api(`/api/albums/${albumId}/photos`, { method: "POST", body: selection });
-      toast(`${res.added} Dateien zum Album hinzugefügt.`);
-      clearSelection();
+      toast(`${files(res.added)} zum Album hinzugefügt.` + keepHint());
       await loadSidebar();
     } catch (err) {
       toast(err.message);

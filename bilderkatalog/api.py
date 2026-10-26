@@ -415,6 +415,11 @@ def create_app(state: State | None = None) -> FastAPI:
         result["place_manual"] = places.is_manual(conn, photo_id)
         return result
 
+    @app.post("/api/places/prepare")
+    def prepare_places():
+        places.vorbereiten()
+        return {"ok": True}
+
     @app.get("/api/places/search")
     def search_places(q: str = "", conn=Conn):
         return places.search(conn, q)

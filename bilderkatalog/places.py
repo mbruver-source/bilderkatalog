@@ -40,6 +40,12 @@ def _suchindex() -> list[tuple[str, str, ortsnamen.Ort]]:
         return _index
 
 
+def vorbereiten() -> None:
+    """Suchverzeichnis im Hintergrund aufbauen (einige Sekunden), z. B. beim Öffnen des Dialogs."""
+    if _index is None:
+        threading.Thread(target=_suchindex, daemon=True, name="ortsverzeichnis").start()
+
+
 def parse_coords(text: str) -> tuple[float, float] | None:
     """"48.8566, 2.3522" oder "48,8566 2,3522" → (Breite, Länge)."""
     match = _COORDS.fullmatch(text or "")
