@@ -57,6 +57,9 @@ button:disabled { opacity: .45; cursor: default; }
 button:disabled:hover { background: var(--panel); }
 button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 button.primary:hover { filter: brightness(1.08); }
+button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+button.danger:hover { filter: brightness(1.08); background: var(--danger); }
+button.danger:disabled:hover { background: var(--danger); }
 button.link { border: none; background: none; color: var(--accent); padding: 4px 6px; }
 button.icon { border: none; background: none; font-size: 18px; padding: 4px 8px; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -201,6 +204,7 @@ dialog h4 { margin: 16px 0 4px; font-size: 13px; }
 .lb-meta a { color: #8ab4ff; }
 .lb-meta button { background: #2a2a2f; color: #eee; border-color: #45454c; }
 .lb-meta button:hover { background: #3a3a40; }
+.lb-meta button.danger { background: var(--danger); color: #fff; border-color: var(--danger); }
 .lb-close { position: absolute; top: 8px; right: 8px; color: #ddd; }
 
 /* Schmale Bildschirme */
@@ -256,3 +260,10 @@ dialog h4 { margin: 16px 0 4px; font-size: 13px; }
 .place-results button:hover { background: var(--hover); }
 .place-results button.chosen { background: var(--sel); }
 .place-results li.muted { padding: 6px 8px; }
+
+/* Löschen */
+.delete-examples { margin: 0 0 12px; padding-left: 18px; max-height: 30vh; overflow-y: auto; }
+.delete-examples li { word-break: break-all; }
+.warnbox p { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: color-mix(in srgb, var(--danger) 12%, transparent); }
+label.confirm { display: flex; gap: 8px; align-items: flex-start; color: var(--text); font-weight: 600; margin: 12px 0 0; }
+label.confirm input { width: auto; margin-top: 3px; }

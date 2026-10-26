@@ -191,6 +191,33 @@ def _shell_thumbnail_once(path: str, px: int) -> bytes | None:
     return out.getvalue()
 
 
+def move_to_recycle_bin(paths: list[Path]) -> None:
+    """Verschiebt Dateien in den Papierkorb (wie "Löschen" im Explorer).
+
+    OneDrive-Dateien werden dadurch auch in der Cloud gelöscht und landen im
+    OneDrive-Papierkorb. Hat ein Laufwerk keinen Papierkorb (z. B. USB-Stick), fragt
+    Windows selbst nach, bevor endgültig gelöscht wird (FOF_WANTNUKEWARNING).
+    Welche Dateien wirklich weg sind, prüft der Aufrufer anhand ihrer Existenz.
+    """
+    if not paths:
+        return
+    if not IS_WINDOWS:
+        raise OSError("Löschen in den Papierkorb gibt es nur unter Windows.")
+    import ctypes
+    from ctypes import wintypes
+
+    class SHFILEOPSTRUCTW(ctypes.Structure):
+        _fields_ = [("hwnd", wintypes.HWND), ("wFunc", ctypes.c_uint), ("pFrom", ctypes.c_wchar_p),
+                    ("pTo", ctypes.c_wchar_p), ("fFlags", ctypes.c_ushort), ("fAnyOperationsAborted", wintypes.BOOL),
+                    ("hNameMappings", ctypes.c_void_p), ("lpszProgressTitle", ctypes.c_wchar_p)]
+
+    fo_delete = 0x3
+    flags = 0x0040 | 0x0010 | 0x0004 | 0x0400 | 0x4000  # ALLOWUNDO, NOCONFIRMATION, SILENT, NOERRORUI, WANTNUKEWARNING
+    liste = "\0".join(str(p) for p in paths) + "\0\0"  # doppelt nullterminiert
+    op = SHFILEOPSTRUCTW(None, fo_delete, liste, None, flags, False, None, None)
+    ctypes.windll.shell32.SHFileOperationW(ctypes.byref(op))  # Ergebnis je Datei prüft der Aufrufer
+
+
 def reveal(path: Path) -> None:
     """Datei im Dateimanager anzeigen."""
     import subprocess

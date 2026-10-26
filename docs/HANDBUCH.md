@@ -2,7 +2,7 @@
 
 Stand: Version 1.0.0.
 
-Der Bilderkatalog hilft dir, viele tausend Fotos in deinem OneDrive (oder in jedem anderen Ordner) wiederzufinden und zu ordnen: nach Datum, Ort, Ordner und Kamera, in eigenen Alben und als ZIP zum Weitergeben. **Deine Bilder werden dabei nie verschoben, umbenannt oder verändert.** Alles, was du ordnest, steht nur im Katalog des Programms.
+Der Bilderkatalog hilft dir, viele tausend Fotos in deinem OneDrive (oder in jedem anderen Ordner) wiederzufinden und zu ordnen: nach Datum, Ort, Ordner und Kamera, in eigenen Alben und als ZIP zum Weitergeben. **Deine Bilder werden dabei nie verschoben, umbenannt oder verändert.** Alles, was du ordnest, steht nur im Katalog des Programms. Einzige Ausnahme ist das [Löschen](#löschen), und das nur, wenn du es ausdrücklich bestätigst.
 
 ## Inhalt
 
@@ -33,7 +33,7 @@ Das Fenster hat drei Bereiche:
 
 Ein paar Grundsätze:
 
-- **Nur lesen:** Das Programm verändert keine Bilder und keine Ordner. Alben und Gruppen gibt es nur im Katalog.
+- **Nur lesen:** Das Programm verändert keine Bilder und keine Ordner. Alben und Gruppen gibt es nur im Katalog. Löschen geht nur auf deinen ausdrücklichen Wunsch und immer in den Papierkorb.
 - **Ohne Anmeldung:** Es liest deinen OneDrive-Ordner direkt auf dem PC. Ein Microsoft-Konto oder eine Registrierung ist nicht nötig.
 - **Offline:** Orte werden aus den GPS-Daten der Fotos auf deinem Rechner bestimmt. Es werden keine Bilder oder Koordinaten verschickt.
 - **Schonend:** Bilder, die nur online liegen, werden zum Einlesen **nicht** heruntergeladen.
@@ -156,7 +156,7 @@ Wer Fotos vom Handy, von der SD-Karte und aus Sicherungen zusammenführt, hat vi
 - **Kopien ausblenden** über dem Raster zeigt überall nur noch die Hauptexemplare. So tauchen Bilder weder im Raster noch in Alben, Ereignissen oder ZIP-Exporten der Ansicht doppelt auf. Die Einstellung bleibt gespeichert.
 - In der Großansicht stehen alle Exemplare mit ihrem Ordner, **Zeigen** öffnet sie im Explorer.
 
-**Gelöscht wird nichts.** Möchtest du aufräumen, kannst du die Kopien über *Zeigen* im Explorer selbst löschen. Danach einmal **Aktualisieren**.
+Von sich aus löscht das Programm nichts. Möchtest du aufräumen: **Alle Kopien auswählen** über dem Raster wählt sämtliche Kopien aus, die Hauptexemplare nicht. Dann in der Auswahlleiste **Löschen …**, siehe [Löschen](#löschen). Vorher lohnt ein Blick, ob jeweils das richtige Exemplar Hauptexemplar ist.
 
 > Neu komprimierte Fassungen, etwa Bilder, die über einen Messenger verschickt wurden, sind andere Dateien und gelten nicht als Kopie.
 
@@ -224,6 +224,22 @@ Bei **Als ZIP …** bzw. **Ansicht → ZIP** wählst du:
 - **Zielordner**, standardmäßig dein Download-Ordner
 
 Die Originale werden unverändert ins ZIP kopiert. Bilder, die nur online liegen, werden dafür kurz geladen und danach wieder freigegeben. Der Fortschritt steht in der Leiste oben, am Ende erscheint der Speicherort.
+
+### Löschen
+
+Die einzige Funktion, die Dateien verändert, deshalb mit eigener Bestätigung:
+
+1. Bilder auswählen und in der Auswahlleiste **Löschen …** wählen, oder in der Großansicht den roten Knopf **Löschen …**.
+2. Der Dialog nennt Anzahl, Größe und die ersten Dateinamen. Er weist darauf hin, wenn Favoriten oder Bilder aus Alben dabei sind.
+3. Erst nach dem Haken bei **„Ja, … löschen“** lässt sich **In den Papierkorb verschieben** anklicken. <kbd>Enter</kbd> bricht ab.
+
+Gut zu wissen:
+
+- Die Dateien kommen in den **Papierkorb von Windows**, von dort lassen sie sich wiederherstellen. Danach einmal **Aktualisieren**, dann sind sie samt Alben und Favoriten wieder im Katalog.
+- **Dateien in OneDrive werden auch in der Cloud und auf allen anderen Geräten gelöscht.** OneDrive hebt sie zusätzlich bis zu 30 Tage in seinem eigenen Papierkorb auf (onedrive.com → Papierkorb).
+- Hat ein Laufwerk keinen Papierkorb (z. B. mancher USB-Stick), fragt Windows vor dem endgültigen Löschen noch einmal nach.
+- Gelöscht werden nur Bilder aus lokal erfassten Ordnern. Über den optionalen Online-Zugang hat das Programm nur Leserechte.
+- Ist eine Datei gerade in einem anderen Programm geöffnet, bleibt sie liegen. Die Meldung nennt die Anzahl.
 
 ## 12. Deine Daten und Sicherung
 

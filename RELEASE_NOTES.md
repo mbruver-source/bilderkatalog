@@ -18,7 +18,10 @@ Die erste Version des Bilderkatalogs als Windows-Programm mit Installer.
 
 **Aufräumen und Korrigieren**
 - Doppelte Dateien: Kopien aus Handy-Sicherung, SD-Karte usw. werden erkannt. „Kopien
-  ausblenden“ zeigt überall nur ein Exemplar. Gelöscht wird nichts.
+  ausblenden“ zeigt überall nur ein Exemplar. „Alle Kopien auswählen“ hilft beim Aufräumen.
+- Löschen: ausgewählte Bilder in den Papierkorb verschieben – nur nach eigener Bestätigung,
+  nur für lokal erfasste Ordner. Bei OneDrive-Dateien hebt OneDrive sie zusätzlich 30 Tage
+  in seinem Papierkorb auf.
 - Aufnahmedatum von Hand setzen, z. B. „07.1998“ für eingescannte Fotos.
 - Ort hinzufügen, ändern oder entfernen – für ein Bild oder eine ganze Auswahl. Ortssuche
   offline mit deutschen oder englischen Namen, oder per Koordinaten aus einer Karten-App.

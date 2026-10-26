@@ -43,6 +43,7 @@
           <span class="spacer"></span>
           <label class="switch" title="Von mehrfach vorhandenen Dateien nur das Hauptexemplar zeigen">
             <input type="checkbox" id="hide-copies"> Kopien ausblenden</label>
+          <button id="dup-copies-btn" hidden title="Alle Kopien auswählen – die Hauptexemplare bleiben unausgewählt">Alle Kopien auswählen</button>
           <button id="select-mode-btn" title="Bilder per Klick auswählen – für ZIP, Album oder Nachladen">Auswählen</button>
           <button id="events-btn" title="Zeitlich und örtlich zusammenhängende Bilder finden">Ereignisse</button>
           <button id="view-album-btn" title="Alle Bilder dieser Ansicht in ein Album übernehmen">Ansicht → Album</button>
@@ -66,6 +67,7 @@
       <button id="sel-zip">Als ZIP …</button>
       <button id="sel-enrich" title="Ort und Kamera der ausgewählten Nur-online-Bilder nachladen">Details nachladen</button>
       <button id="sel-all">Alle geladenen</button>
+      <button id="sel-delete" class="danger" title="Ausgewählte Dateien in den Papierkorb verschieben">Löschen …</button>
       <button class="link" id="sel-clear">Auswahl aufheben</button>
     </div>
   </div>
@@ -134,6 +136,19 @@
       <span class="spacer"></span>
       <button id="place-cancel">Abbrechen</button>
       <button id="place-save" class="primary" disabled>Speichern</button>
+    </div>
+  </dialog>
+
+  <!-- Löschen -->
+  <dialog id="delete-dlg" class="wide">
+    <h3>Dateien löschen?</h3>
+    <p id="delete-summary"></p>
+    <ul id="delete-examples" class="delete-examples"></ul>
+    <div id="delete-warnings" class="warnbox"></div>
+    <label class="confirm"><input type="checkbox" id="delete-confirm"> <span id="delete-confirm-text"></span></label>
+    <div class="actions">
+      <button id="delete-cancel" class="primary">Abbrechen</button>
+      <button id="delete-ok" class="danger" disabled>In den Papierkorb verschieben</button>
     </div>
   </dialog>
 

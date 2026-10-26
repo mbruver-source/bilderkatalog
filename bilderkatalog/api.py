@@ -16,7 +16,7 @@ from pydantic import BaseModel
 
 from . import (
     __version__, albums, config, dates, db, duplicates, export, geocode, local_source, places, queries, sicherung,
-    sync, updates, winfiles,
+    sync, trash, updates, winfiles,
 )
 from .auth import Auth, AuthError
 from .graph_client import GraphClient, GraphError, NotLoggedIn
@@ -38,6 +38,7 @@ class State:
         self.sync_job = Job("sync")
         self.enrich_job = Job("enrich")
         self.export_job = Job("export")
+        self.delete_job = Job("delete")
         self.login_job = Job("login")
         conn = db.connect(self.db_path)
         try:
@@ -96,7 +97,7 @@ class State:
     def shutdown(self, timeout: float = 15.0) -> None:
         """Beim Schließen des Fensters: laufende Aufgaben abbrechen und kurz auf sie warten,
         damit angefangene Downloads noch wieder freigegeben werden."""
-        jobs = (self.sync_job, self.enrich_job, self.export_job)
+        jobs = (self.sync_job, self.enrich_job, self.export_job, self.delete_job)
         for job in jobs:
             job.cancel()
         deadline = time.monotonic() + timeout
@@ -104,7 +105,7 @@ class State:
             time.sleep(0.1)
 
     def busy(self) -> str | None:
-        for job in (self.sync_job, self.enrich_job):
+        for job in (self.sync_job, self.enrich_job, self.delete_job):
             if job.running:
                 return job.kind
         return None
@@ -142,6 +143,11 @@ class DateIn(SelectionIn):
 
 class PlaceIn(SelectionIn):
     place: dict | None = None    # lat, lon, city, region, country_code; None = Ort entfernen
+
+
+class DeleteIn(BaseModel):
+    ids: list[str]           # bewusst nur einzelne IDs, nie ein Ansichtsfilter
+    confirm_count: int       # Anzahl, die im Bestätigungsdialog angezeigt und bestätigt wurde
 
 
 class BackupIn(BaseModel):
@@ -218,7 +224,8 @@ def create_app(state: State | None = None) -> FastAPI:
             "scopes": [dict(r) for r in conn.execute(
                 "SELECT item_id, kind, path, last_sync FROM scope ORDER BY kind, path")],
             "onedrive_roots": [str(p) for p in winfiles.onedrive_roots()],
-            "jobs": {j.kind: j.to_dict() for j in (state.sync_job, state.enrich_job, state.export_job, state.login_job)},
+            "jobs": {j.kind: j.to_dict() for j in (state.sync_job, state.enrich_job, state.export_job,
+                                                   state.delete_job, state.login_job)},
             "export_dir": str(config.default_export_dir()),
         }
 
@@ -306,8 +313,8 @@ def create_app(state: State | None = None) -> FastAPI:
 
     @app.post("/api/sync")
     def start_sync():
-        if state.enrich_job.running:
-            raise HTTPException(409, "Während des Nachladens nicht möglich.")
+        if state.enrich_job.running or state.delete_job.running:
+            raise HTTPException(409, "Während des Nachladens bzw. Löschens nicht möglich.")
 
         def run(job: Job):
             conn = state.connect()
@@ -384,7 +391,8 @@ def create_app(state: State | None = None) -> FastAPI:
 
     @app.post("/api/jobs/{kind}/cancel")
     def cancel_job(kind: str):
-        job = {"sync": state.sync_job, "enrich": state.enrich_job, "export": state.export_job}.get(kind)
+        job = {"sync": state.sync_job, "enrich": state.enrich_job, "export": state.export_job,
+               "delete": state.delete_job}.get(kind)
         if job is None:
             raise HTTPException(404)
         job.cancel()
@@ -523,6 +531,40 @@ def create_app(state: State | None = None) -> FastAPI:
     def remove_from_album(album_id: int, body: SelectionIn, conn=Conn):
         _require_album(conn, album_id)
         return {"removed": albums.remove_photos(conn, album_id, _selection(conn, body))}
+
+    # -- Löschen (Papierkorb) ------------------------------------------------------
+
+    @app.post("/api/delete/preview")
+    def delete_preview(body: SelectionIn, conn=Conn):
+        return trash.summary(conn, _selection(conn, body))
+
+    @app.post("/api/delete")
+    def delete_files(body: DeleteIn, conn=Conn):
+        if state.busy():
+            raise HTTPException(409, "Bitte warten, bis die laufende Aufgabe beendet ist.")
+        ids = list(dict.fromkeys(body.ids))
+        if trash.summary(conn, ids)["count"] != body.confirm_count or not body.confirm_count:
+            raise HTTPException(409, "Die Auswahl hat sich geändert. Bitte erneut bestätigen.")
+
+        def run(job: Job):
+            job.update(f"Verschiebe {len(ids)} Dateien in den Papierkorb …", 0, len(ids))
+            delete_conn = state.connect()
+            try:
+                result = trash.delete(delete_conn, ids, progress=lambda i, n: job.update(None, i, n),
+                                      cancelled=job.cancelled)
+                duplicates.refresh(delete_conn)
+            finally:
+                delete_conn.close()
+            n = result["deleted"]
+            text = f"{n} {'Datei' if n == 1 else 'Dateien'} in den Papierkorb verschoben."
+            if result["failed_count"]:
+                text += f" {result['failed_count']} konnten nicht gelöscht werden (geöffnet oder schreibgeschützt?)."
+            job.update(text)
+            return result
+
+        if not state.delete_job.start(run):
+            raise HTTPException(409, "Es wird bereits gelöscht.")
+        return state.delete_job.to_dict()
 
     # -- Sicherung der eigenen Einträge -----------------------------------------
 

@@ -116,7 +116,7 @@ def scan_scope(
     known = {
         r["local_path"]: r
         for r in conn.execute(
-            "SELECT id, local_path, size, mtime, online_only, meta_level FROM photo "
+            "SELECT id, local_path, size, mtime, online_only, meta_level, deleted FROM photo "
             "WHERE source = 'local' AND scope_id = ?", (scope_id,)
         )
     }
@@ -133,8 +133,9 @@ def scan_scope(
         unchanged = prev is not None and prev["size"] == st.st_size and prev["mtime"] == st.st_mtime
         # Inzwischen lokal vorhandene Dateien mit nur teilweisen Metadaten erneut lesen
         if unchanged and not (prev["meta_level"] == "partial" and not online):
-            if prev["online_only"] != int(online):
-                conn.execute("UPDATE photo SET online_only = ? WHERE id = ?", (int(online), prev["id"]))
+            if prev["online_only"] != int(online) or prev["deleted"]:
+                # deleted: Datei war weg und ist unverändert zurück (z. B. aus dem Papierkorb)
+                conn.execute("UPDATE photo SET online_only = ?, deleted = 0 WHERE id = ?", (int(online), prev["id"]))
             continue
         todo.append((path, st))
         if progress and found % 500 == 0:

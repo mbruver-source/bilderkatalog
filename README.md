@@ -4,7 +4,7 @@ Ein lokales Programm, das deine Bilder und Videos in OneDrive über ihre **Metad
 
 - **Sortieren und Filtern** nach Datum, Jahr, Monat, Ort (Land/Stadt), Ordner, Kamera und Dateiname
 - **Virtuelle Ordner (Alben) und Favoriten:** Bilder frei zusammenstellen oder mit einem Stern markieren. Ein Bild kann in mehreren Alben liegen.
-- **Doppelte Dateien** erkennen (gleiche Größe und gleiche Aufnahmezeit oder gleicher Name) und auf Wunsch überall ausblenden. Gelöscht wird nichts.
+- **Doppelte Dateien** erkennen (gleiche Größe und gleiche Aufnahmezeit oder gleicher Name) und auf Wunsch überall ausblenden – oder gezielt in den Papierkorb verschieben.
 - **Aufnahmedatum und Ort korrigieren oder ergänzen**, z. B. für eingescannte Fotos („07.1998“) oder Bilder ohne GPS. Ortssuche offline mit deutschen Namen oder per Koordinaten. Gilt nur im Katalog.
 - **Vorschaubilder auch für „Nur online“-Dateien und Videos**, ohne Download (Windows/OneDrive liefert sie aus der Cloud)
 - **Ereignisse:** Bilder, die zeitlich und örtlich zusammengehören (z. B. ein Urlaubstag), werden automatisch erkannt und lassen sich als Album übernehmen.
@@ -12,7 +12,7 @@ Ein lokales Programm, das deine Bilder und Videos in OneDrive über ihre **Metad
 - **Prüflisten:** ohne Aufnahmedatum, ohne GPS, Videos, doppelte Dateien, Datum/Ort von Hand gesetzt, Nur-online-Bilder ohne Details
 - **Sicherung** von Alben, Favoriten, Datums- und Ortskorrekturen als kleine Datei, die sich auch auf einem anderen PC einspielen lässt
 
-> **Deine Bilder werden nicht verändert.** Alben, Gruppen und Sortierungen existieren nur in einer lokalen SQLite-Datenbank. Das Programm liest Dateien ausschließlich. Für „Nur online“-Dateien setzt es höchstens den Status „Speicherplatz freigeben“ zurück, und den hatten sie vorher ohnehin.
+> **Deine Bilder werden nicht verändert.** Alben, Gruppen, Favoriten und Korrekturen existieren nur in einer lokalen SQLite-Datenbank. Das Programm liest Dateien nur. Für „Nur online“-Dateien setzt es höchstens den Status „Speicherplatz freigeben“ zurück, und den hatten sie vorher ohnehin. Einzige Ausnahme: **Löschen** – nur auf ausdrücklichen Wunsch mit eigener Bestätigung, nur für lokal erfasste Ordner und immer in den Papierkorb.
 
 **Webseite:** <https://mbruver-source.github.io/bilderkatalog/> · **Handbuch:** [docs/HANDBUCH.md](docs/HANDBUCH.md) · **Download:** [Releases](https://github.com/mbruver-source/bilderkatalog/releases/latest)
 
@@ -25,7 +25,7 @@ Ein lokales Programm, das deine Bilder und Videos in OneDrive über ihre **Metad
 ```
 Browser (localhost) ─► Python-Server (FastAPI) ─► SQLite-Datenbank (lokal)
                               │
-                              ├─► OneDrive-Ordner auf dem PC (nur lesen)
+                              ├─► OneDrive-Ordner auf dem PC (lesen; Löschen nur nach Bestätigung, in den Papierkorb)
                               ├─► Offline-Ortsauflösung (GeoNames-Datensatz, keine Online-Abfrage)
                               └─► optional: Microsoft Graph API (nur lesend)
 ```

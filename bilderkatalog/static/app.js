@@ -214,7 +214,7 @@ function openEnrich(selection, info) {
     try {
       await api("/api/enrich", { method: "POST", body: selection ?? undefined });
       clearSelection();
-      startPolling();
+      startPolling("enrich");
     } catch (err) {
       toast(err.message);
     }
@@ -328,7 +328,7 @@ function renderSidebar() {
     el("li", {}, navItem("Videos", f.special.videos, { media: "video" }, "Videos")),
     f.special.dup_groups ? el("li", {}, navItem("Doppelte Dateien", f.special.dup_copies, { dups: true }, "Doppelte Dateien",
       { tooltip: `${f.special.dup_groups.toLocaleString("de-DE")} Dateien sind mehrfach vorhanden, zusammen ${f.special.dup_copies.toLocaleString("de-DE")} Kopien. ` +
-        "Gleich groß und gleiche Aufnahmezeit oder gleicher Name. Nichts wird gelöscht." })) : null,
+        "Gleich groß und gleiche Aufnahmezeit oder gleicher Name. Gelöscht wird nur, was du selbst auswählst und bestätigst." })) : null,
     f.special.date_manual ? el("li", {}, navItem("Datum von Hand gesetzt", f.special.date_manual, { date_manual: true }, "Datum von Hand gesetzt")) : null,
     f.special.place_manual ? el("li", {}, navItem("Ort von Hand gesetzt", f.special.place_manual, { place_manual: true }, "Ort von Hand gesetzt")) : null,
     f.special.partial ? el("li", {}, navItem("Nur online, Details fehlen", f.special.partial, { partial: true }, "Nur online – Details fehlen",
@@ -367,6 +367,7 @@ async function reload() {
   $("#view-enrich-btn").hidden = true;
   $("#view-title").textContent = state.title;
   $("#sel-remove").hidden = state.filter.album === undefined;
+  $("#dup-copies-btn").hidden = !state.filter.dups;
   $("#hide-copies").checked = state.hideCopies;
   $("#hide-copies").disabled = Boolean(state.filter.dups);
   await loadMore();
@@ -649,7 +650,7 @@ function refreshSelection() {
   $("#selbar").hidden = n === 0 && !state.selectMode;
   $("#sel-count").textContent = `${n} ausgewählt`;
   $("#sel-hint").hidden = n > 0;
-  for (const id of ["#sel-fav", "#sel-album", "#sel-date", "#sel-place", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
+  for (const id of ["#sel-fav", "#sel-album", "#sel-date", "#sel-place", "#sel-delete", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
   $("#select-mode-btn").textContent = state.selectMode ? "Auswahl beenden" : "Auswählen";
   $("#select-mode-btn").classList.toggle("primary", Boolean(state.selectMode));
 }
@@ -724,6 +725,69 @@ function chooseAlbum(selection, suggestedName = "") {
     }
   };
   dlg.showModal();
+}
+
+// ---------- Löschen (Papierkorb) ----------
+
+$("#sel-delete").addEventListener("click", () => openDelete([...state.selected]));
+
+$("#dup-copies-btn").addEventListener("click", async () => {
+  // alle Kopien der Duplikat-Ansicht, auch die noch nicht geladenen
+  const ids = [];
+  for (let offset = 0; ; offset += 1000) {
+    const page = await api(`/api/photos?${qs({ dups: true, limit: 1000, offset })}`);
+    page.items.filter((i) => i.dup_rank > 0).forEach((i) => ids.push(i.id));
+    if (page.items.length < 1000) break;
+  }
+  setSelectMode(true);
+  ids.forEach((id) => state.selected.add(id));
+  refreshSelection();
+  toast(`${files(ids.length)} ausgewählt – nur Kopien, die Hauptexemplare nicht.`);
+});
+
+async function openDelete(ids) {
+  let info;
+  try {
+    info = await api("/api/delete/preview", { method: "POST", body: { ids } });
+  } catch (err) {
+    return toast(err.message);
+  }
+  if (!info.count) return toast("Löschen geht nur bei Dateien aus lokal erfassten Ordnern.");
+  const dlg = $("#delete-dlg");
+  $("#delete-summary").textContent = `${files(info.count)} (${formatSize(info.bytes)}) werden in den Papierkorb verschoben.`;
+  $("#delete-examples").replaceChildren(...[
+    ...info.examples.map((e) => el("li", {}, `${e.folder}/${e.name}`)),
+    info.count > info.examples.length ? el("li", { class: "muted" }, `… und ${files(info.count - info.examples.length)} mehr`) : null,
+  ].filter(Boolean));  // replaceChildren würde null als Text einfügen
+  const warnings = [
+    info.onedrive ? `${files(info.onedrive)} liegen in OneDrive und werden dadurch auch in der Cloud und auf allen anderen Geräten gelöscht. ` +
+      "Wiederherstellen kannst du sie aus dem Papierkorb von Windows oder bis zu 30 Tage lang aus dem OneDrive-Papierkorb im Browser." : null,
+    info.favorites ? `${files(info.favorites)} davon sind Favoriten.` : null,
+    info.in_album ? `${files(info.in_album)} davon liegen in Alben.` : null,
+    info.not_local ? `${files(info.not_local)} aus dem Online-Zugang werden nicht gelöscht.` : null,
+  ].filter(Boolean);
+  $("#delete-warnings").replaceChildren(...warnings.map((w) => el("p", {}, w)));
+  $("#delete-confirm-text").textContent = `Ja, ${info.count === 1 ? "diese Datei" : `diese ${files(info.count)}`} löschen.`;
+  const check = $("#delete-confirm");
+  check.checked = false;
+  $("#delete-ok").disabled = true;
+  check.onchange = () => { $("#delete-ok").disabled = !check.checked; };
+  $("#delete-cancel").onclick = () => dlg.close();
+  $("#delete-ok").onclick = async () => {
+    $("#delete-ok").disabled = true;
+    try {
+      await api("/api/delete", { method: "POST", body: { ids, confirm_count: info.count } });
+      dlg.close();
+      if ($("#lightbox").open) $("#lightbox").close();
+      setSelectMode(false);
+      startPolling("delete");
+    } catch (err) {
+      dlg.close();
+      toast(err.message);
+    }
+  };
+  dlg.showModal();
+  $("#delete-cancel").focus();  // Enter bricht ab, löscht nie versehentlich
 }
 
 // ---------- Sicherung ----------
@@ -802,7 +866,7 @@ function openExport(selection, info, name) {
         body: { ...selection, name: form.name.value, structure: form.structure.value, target_dir: form.target_dir.value || null },
       });
       clearSelection();
-      startPolling();
+      startPolling("export");
     } catch (err) {
       toast(err.message);
     }
@@ -899,6 +963,7 @@ async function renderLightbox() {
     el("p", {}, el("button", { onclick: () => { $("#lightbox").close(); chooseAlbum({ ids: [item.id] }); } }, "Zu Album …"), " ",
       el("button", { onclick: () => openDate({ ids: [item.id] }, item.name, dateText) }, "Datum ändern …"), " ",
       el("button", { onclick: () => openPlace({ ids: [item.id] }, item.name) }, detail.country_code ? "Ort ändern …" : "Ort hinzufügen …")),
+    detail.source === "local" ? el("p", {}, el("button", { class: "danger", onclick: () => openDelete([item.id]) }, "Löschen …")) : null,
   ].filter(Boolean));  // replaceChildren würde null als Text "null" einfügen
 }
 
@@ -1053,7 +1118,7 @@ async function removeScope(scope) {
 $("#sync-btn").addEventListener("click", async () => {
   try {
     await api("/api/sync", { method: "POST" });
-    startPolling();
+    startPolling("sync");
   } catch (err) {
     toast(err.message);
   }
@@ -1063,7 +1128,10 @@ let activeJob = null;
 $("#job-cancel").addEventListener("click", () => activeJob && api(`/api/jobs/${activeJob}/cancel`, { method: "POST" }));
 $("#job-close").addEventListener("click", () => { $("#jobbar").hidden = true; });
 
-function startPolling() {
+// started: gerade gestarteter Job – auch wenn er schon vor der ersten Abfrage fertig ist,
+// soll die Oberfläche das Ende bemerken (Ansicht neu laden, Meldung zeigen)
+function startPolling(started) {
+  if (started) state.lastJobStates[started] = "running";
   if (state.pollTimer) return;
   const tick = async () => {
     try {
@@ -1079,7 +1147,7 @@ function startPolling() {
 }
 
 function handleJobs(jobs, initial) {
-  const kinds = ["sync", "enrich", "export"];
+  const kinds = ["sync", "enrich", "export", "delete"];
   const running = kinds.find((k) => jobs[k].state === "running");
   for (const kind of kinds) {
     const job = jobs[kind];
