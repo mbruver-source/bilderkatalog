@@ -253,7 +253,7 @@ Alles bleibt auf deinem Rechner, im Ordner
 Dort liegen der Katalog (`katalog.db` mit Alben, Favoriten, eigenen Daten und Orten sowie den Angaben zu den Bildern), die Vorschaubilder (`thumbs`, etwa 20 KB pro Bild), die automatischen Sicherungen (`sicherungen`) und eine Protokolldatei. Den genauen Pfad zeigt das Versionsfenster (Klick auf die Versionsnummer oben rechts).
 
 - Das Programm schickt **keine Bilder, Ortsdaten oder Dateinamen** ins Internet. Nur **Nach Updates suchen** fragt auf deinen Klick hin bei GitHub nach der neuesten Versionsnummer.
-- Das Programm ist nur auf deinem eigenen Rechner erreichbar, nicht im Netzwerk.
+- Das Programm ist nur auf deinem eigenen Rechner erreichbar, nicht im Netzwerk, und dort nur für das eigene Programmfenster: Bei jedem Start entsteht ein zufälliger Schlüssel, ohne den andere Programme oder Benutzer nichts abrufen können.
 - **Zurücksetzen:** Programm schließen und den Ordner oben löschen. Beim nächsten Start beginnt der Katalog leer, deine Bilder sind davon nicht betroffen. Alben, Favoriten sowie eigene Daten und Orte sind dann aber weg, also vorher sichern.
 
 ### Sicherung

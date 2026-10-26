@@ -101,7 +101,7 @@ Weitere Befehle:
 
 | Befehl | Wirkung |
 |---|---|
-| `bilderkatalog serve` | Im Browser statt im eigenen Fenster (`http://127.0.0.1:8765/`) |
+| `bilderkatalog serve` | Im Browser statt im eigenen Fenster (`http://127.0.0.1:8765/?t=…`, die vollständige Adresse mit Sitzungsschlüssel steht beim Start in der Konsole) |
 | `bilderkatalog serve --port 9000 --no-browser` | Server auf anderem Port, ohne Browser |
 | `bilderkatalog sync` | Gewählte Ordner einlesen, ohne Oberfläche |
 | `bilderkatalog enrich` | Details der Nur-online-Bilder nachladen, ohne Oberfläche |
@@ -140,7 +140,7 @@ Danach kannst du unter „Ordner wählen“ auch Online-Ordner hinzufügen. Erfa
   - Linux: `~/.local/share/bilderkatalog/`
 
   Dort liegen die Datenbank (`katalog.db`), die Vorschaubilder (`thumbs/`, etwa 20 KB pro Bild) und beim Online-Zugang der Anmelde-Token. Mit der Umgebungsvariable `BILDERKATALOG_DATA_DIR` lässt sich der Ort ändern.
-- Der Server lauscht nur auf `127.0.0.1` und lehnt Anfragen von fremden Webseiten ab.
+- Der Server lauscht nur auf `127.0.0.1` und lehnt Anfragen von fremden Webseiten ab. Bei jedem Start erzeugt er einen zufälligen Sitzungsschlüssel, den nur das eigene Programmfenster kennt. Ohne ihn antwortet die API nicht, auch nicht anderen Programmen oder Benutzern auf demselben PC.
 - GPS-Koordinaten werden nicht an externe Dienste geschickt.
 - Zum Zurücksetzen löschst du einfach das Datenverzeichnis.
 

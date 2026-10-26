@@ -22,6 +22,7 @@ import tempfile
 import threading
 import time
 import traceback
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -186,7 +187,8 @@ def _server() -> str:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
-    server = uvicorn.Server(uvicorn.Config(create_app(), host="127.0.0.1", port=port, log_level="warning"))
+    app = create_app()
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     try:
@@ -195,10 +197,17 @@ def _server() -> str:
                 break
             time.sleep(0.05)
         basis = f"http://127.0.0.1:{port}"
-        seite = urllib.request.urlopen(basis + "/", timeout=10).read().decode("utf-8")
-        assert "Bilderkatalog" in seite and "/static/app.js?v=" in seite
-        for pfad in ("/static/app.js", "/static/style.css", "/static/icon.ico", "/static/icon.png", "/api/status"):
+        seite = urllib.request.urlopen(f"{basis}/?t={app.state.token}", timeout=10).read().decode("utf-8")
+        assert "Bilderkatalog" in seite and "/static/app.js?v=" in seite and app.state.token in seite
+        for pfad in ("/static/app.js", "/static/style.css", "/static/icon.ico", "/static/icon.png"):
             assert urllib.request.urlopen(basis + pfad, timeout=10).status == 200, pfad
+        mit_schluessel = urllib.request.Request(basis + "/api/status", headers={"X-Bilderkatalog-Token": app.state.token})
+        assert urllib.request.urlopen(mit_schluessel, timeout=10).status == 200
+        try:  # ohne Schlüssel: abgewiesen
+            urllib.request.urlopen(basis + "/api/status", timeout=10)
+            raise AssertionError("API antwortet ohne Sitzungsschlüssel")
+        except urllib.error.HTTPError as err:
+            assert err.code == 401, err.code
         return f"Port {port}"
     finally:
         server.should_exit = True

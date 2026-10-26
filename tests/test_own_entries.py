@@ -10,6 +10,7 @@ from bilderkatalog import albums, dates, duplicates, geocode, local_source, plac
 from bilderkatalog.queries import Filter
 
 from .test_local import make_jpeg, rows, scan
+from .conftest import client_for
 
 
 @pytest.fixture
@@ -258,8 +259,6 @@ def test_auto_backup_only_when_changed(conn, library):
 # -- API ----------------------------------------------------------------------------
 
 def test_api_favorites_dates_backup(tmp_path, library):
-    from fastapi.testclient import TestClient
-
     from bilderkatalog.api import State, create_app
 
     state = State(tmp_path / "api.db")
@@ -267,7 +266,7 @@ def test_api_favorites_dates_backup(tmp_path, library):
     scan(conn, library)
     ids = {r["name"] + r["parent_path"]: r["id"] for r in conn.execute("SELECT * FROM photo")}
     conn.close()
-    client = TestClient(create_app(state))
+    client = client_for(create_app(state))
     hdr = {"X-Bilderkatalog": "1"}
     scan_id = ids["scan_001.jpg/Fotos/Scan"]
 

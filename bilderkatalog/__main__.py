@@ -86,12 +86,13 @@ def _serve(port: int, no_browser: bool) -> int:
 
     from .api import create_app
 
-    url = f"http://127.0.0.1:{port}/"
+    app = create_app()
+    url = f"http://127.0.0.1:{port}/?t={app.state.token}"  # Schlüssel gilt nur für diesen Start
     print(f"Bilderkatalog läuft auf {url}  (Beenden mit Strg+C)")
     print(f"Daten liegen in {config.data_dir()}")
     if not no_browser:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
-    uvicorn.run(create_app(), host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
     return 0
 
 
@@ -147,7 +148,7 @@ def _window() -> int:
         # Eigene Taskleisten-Gruppe, sonst zeigt Windows das Python-Symbol
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Bilderkatalog")
     webview.create_window(
-        "Bilderkatalog", f"http://127.0.0.1:{port}/",
+        "Bilderkatalog", f"http://127.0.0.1:{port}/?t={app.state.token}",
         width=1400, height=900, min_size=(800, 500), text_select=True, maximized=True,
     )
     webview.start(icon=str(icon))  # blockiert, bis das Fenster geschlossen wird

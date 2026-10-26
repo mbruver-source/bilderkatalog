@@ -4,9 +4,11 @@
 
 const $ = (sel) => document.querySelector(sel);
 const PAGE = 200;
+// Sitzungsschlüssel: ohne ihn antwortet der lokale Server nicht (Schutz vor anderen Programmen)
+const TOKEN = document.querySelector('meta[name="bk-token"]').content;
 
 async function api(path, { method = "GET", body } = {}) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: { "X-Bilderkatalog-Token": TOKEN } };
   if (method !== "GET") opts.headers["X-Bilderkatalog"] = "1";
   if (body !== undefined) {
     opts.headers["Content-Type"] = "application/json";
@@ -42,7 +44,7 @@ const formatDate = (iso) => iso ? new Date(iso).toLocaleString("de-DE", { dateSt
 const formatDay = (iso) => iso ? new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" }) : "";
 const formatSize = (bytes) => bytes == null ? "–" : bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} kB`;
 const files = (n) => `${n.toLocaleString("de-DE")} ${n === 1 ? "Datei" : "Dateien"}`;
-const thumbUrl = (id, size = "medium") => `/api/thumb/${encodeURIComponent(id)}?size=${size}`;
+const thumbUrl = (id, size = "medium") => `/api/thumb/${encodeURIComponent(id)}?${qs({ size, t: TOKEN })}`;
 
 function toast(message) {
   $("#job-msg").textContent = message;
@@ -125,7 +127,7 @@ $("#version-close").addEventListener("click", () => $("#version-dlg").close());
 $("#licenses-btn").addEventListener("click", async () => {
   $("#licenses-dlg").showModal();
   try {
-    $("#licenses-text").textContent = await (await fetch("/api/licenses")).text();
+    $("#licenses-text").textContent = await (await fetch("/api/licenses", { headers: { "X-Bilderkatalog-Token": TOKEN } })).text();
   } catch (err) {
     $("#licenses-text").textContent = err.message;
   }

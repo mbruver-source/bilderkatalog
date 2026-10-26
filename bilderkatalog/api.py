@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import html as html_lib
 import os
+import secrets
 import sqlite3
 import threading
 import time
@@ -25,6 +27,8 @@ from .jobs import Job
 STATIC = Path(__file__).parent / "static"
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 CSRF_HEADER = "x-bilderkatalog"
+TOKEN_HEADER = "x-bilderkatalog-token"
+TOKEN_PARAM = "t"  # nur für GET, z. B. Vorschaubilder in <img src>
 
 
 class State:
@@ -165,10 +169,19 @@ class ExportIn(SelectionIn):
     target_dir: str | None = None
 
 
-def create_app(state: State | None = None) -> FastAPI:
+def create_app(state: State | None = None, token: str | None = None) -> FastAPI:
+    """`token`: Zufallsschlüssel dieser Sitzung (ohne Angabe neu erzeugt, siehe app.state.token).
+    Nur wer ihn kennt – das eigene Programmfenster –, bekommt Antworten von der API."""
     state = state or State()
-    app = FastAPI(title="Bilderkatalog", docs_url=None, redoc_url=None)
+    app = FastAPI(title="Bilderkatalog", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.bk = state
+    app.state.token = token = token or secrets.token_urlsafe(32)
+
+    def token_ok(request: Request, query_allowed: bool) -> bool:
+        given = request.headers.get(TOKEN_HEADER)
+        if given is None and query_allowed:
+            given = request.query_params.get(TOKEN_PARAM)
+        return given is not None and secrets.compare_digest(given.encode(), token.encode())
 
     @app.middleware("http")
     async def local_only(request: Request, call_next):
@@ -178,7 +191,12 @@ def create_app(state: State | None = None) -> FastAPI:
             return JSONResponse({"detail": "Nur lokaler Zugriff erlaubt."}, status_code=403)
         if request.method not in ("GET", "HEAD") and request.headers.get(CSRF_HEADER) != "1":
             return JSONResponse({"detail": "Fehlender Sicherheits-Header."}, status_code=403)
+        # Andere Programme oder Benutzer auf demselben PC erreichen 127.0.0.1 ebenfalls –
+        # ohne den Sitzungsschlüssel bekommen sie nichts. Statische Dateien sind öffentlich.
+        if request.url.path.startswith("/api/") and not token_ok(request, request.method == "GET"):
+            return JSONResponse({"detail": "Nicht berechtigt. Bitte den Bilderkatalog neu starten."}, status_code=401)
         response = await call_next(request)
+        response.headers["Referrer-Policy"] = "no-referrer"  # Adresse mit Schlüssel nie weitergeben
         if request.url.path.startswith("/static/"):
             # Nach Updates nie veralteten Code verwenden (Browser fragt per ETag nach → meist 304)
             response.headers["Cache-Control"] = "no-cache"
@@ -627,13 +645,20 @@ def create_app(state: State | None = None) -> FastAPI:
     # -- Oberfläche -------------------------------------------------------------
 
     @app.get("/")
-    def index():
+    def index(request: Request):
+        if not token_ok(request, query_allowed=True):
+            return HTMLResponse(
+                "<!doctype html><meta charset='utf-8'><title>Bilderkatalog</title>"
+                "<p style='font-family:system-ui;padding:2em'>Bitte den Bilderkatalog über das Programm "
+                "bzw. die Adresse starten, die beim Start angezeigt wird.</p>", status_code=403)
         # Versionskennung an Skript/Stylesheet hängen, damit Browser-Caches sie neu laden
         html = (STATIC / "index.html").read_text(encoding="utf-8")
         for name in ("app.js", "style.css"):
             version = int((STATIC / name).stat().st_mtime)
             html = html.replace(f'/static/{name}"', f'/static/{name}?v={version}"')
-        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+        html = html.replace('<meta name="bk-token" content="">',
+                            f'<meta name="bk-token" content="{html_lib.escape(token)}">')
+        return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
     return app

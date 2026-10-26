@@ -1,7 +1,7 @@
-from fastapi.testclient import TestClient
-
 from bilderkatalog import config
 from bilderkatalog.api import State, create_app
+
+from .conftest import client_for
 
 HDR = {"X-Bilderkatalog": "1"}
 
@@ -15,7 +15,7 @@ def make_client(tmp_path):
     )
     conn.commit()
     conn.close()
-    return TestClient(create_app(state))
+    return client_for(create_app(state))
 
 
 def test_status_without_setup(tmp_path):
@@ -100,3 +100,28 @@ def test_shutdown_cancels_running_jobs(tmp_path):
     begonnen.wait(2)
     state.shutdown(timeout=5)
     assert state.enrich_job.state == "cancelled"
+
+
+def test_session_token_required(tmp_path):
+    """Andere Programme auf demselben PC kennen den Sitzungsschlüssel nicht und bekommen nichts."""
+    from fastapi.testclient import TestClient
+
+    app = create_app(State(tmp_path / "api.db"))
+    fremd = TestClient(app)
+    assert fremd.get("/api/status").status_code == 401
+    assert fremd.get("/api/photos").status_code == 401
+    assert fremd.get("/api/thumb/x").status_code == 401
+    assert fremd.post("/api/delete", json={"ids": ["x"], "confirm_count": 1}, headers=HDR).status_code == 401
+    assert fremd.get("/api/status", headers={"X-Bilderkatalog-Token": "falsch"}).status_code == 401
+    assert fremd.get("/").status_code == 403
+    assert fremd.get("/static/app.js").status_code == 200  # Programmcode ist öffentlich
+
+    token = app.state.token
+    assert len(token) >= 40 and create_app(State(tmp_path / "b.db")).state.token != token
+    seite = fremd.get("/", params={"t": token})
+    assert seite.status_code == 200 and f'content="{token}"' in seite.text
+    assert seite.headers["referrer-policy"] == "no-referrer"
+    assert fremd.get("/api/status", headers={"X-Bilderkatalog-Token": token}).status_code == 200
+    assert fremd.get("/api/thumb/x", params={"t": token}).status_code == 404  # Vorschau per <img src>
+    # Schlüssel im URL-Parameter nur für GET, ändernde Anfragen brauchen den Header
+    assert fremd.post("/api/albums", params={"t": token}, json={"name": "x"}, headers=HDR).status_code == 401

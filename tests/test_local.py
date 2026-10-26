@@ -11,6 +11,8 @@ from PIL import Image
 
 from bilderkatalog import albums, db, export, local_source, winfiles
 
+from .conftest import client_for
+
 
 def make_jpeg(path, taken=None, gps=None, camera=("Beispiel", "Cam 1"), size=(64, 48)):
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -179,8 +181,6 @@ def test_enrich_only_selected_ids(conn, library, monkeypatch):
 
 
 def test_enrich_one_via_api(tmp_path, library, monkeypatch):
-    from fastapi.testclient import TestClient
-
     from bilderkatalog.api import State, create_app
 
     monkeypatch.setattr(winfiles, "is_online_only", lambda st: True)
@@ -191,7 +191,7 @@ def test_enrich_one_via_api(tmp_path, library, monkeypatch):
     scan(conn, library)
     photo_id = rows(conn)["IMG_0001.jpg"]["id"]
     conn.close()
-    client = TestClient(create_app(state))
+    client = client_for(create_app(state))
     hdr = {"X-Bilderkatalog": "1"}
 
     view = client.get("/api/photos", params={"folder": "/Fotos/Urlaub"}).json()

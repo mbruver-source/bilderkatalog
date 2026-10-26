@@ -21,6 +21,13 @@ def isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.delenv("BILDERKATALOG_CLIENT_ID", raising=False)
 
 
+def client_for(app):
+    """Testclient wie das Programmfenster: schickt den Sitzungsschlüssel mit."""
+    from fastapi.testclient import TestClient
+
+    return TestClient(app, headers={"X-Bilderkatalog-Token": app.state.token})
+
+
 @pytest.fixture
 def conn(tmp_path):
     connection = db.connect(tmp_path / "test.db")

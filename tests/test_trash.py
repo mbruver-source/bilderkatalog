@@ -4,12 +4,11 @@ import os
 import time
 
 import pytest
-from fastapi.testclient import TestClient
-
 from bilderkatalog import albums, trash, winfiles
 from bilderkatalog.api import State, create_app
 
 from .test_local import make_jpeg, rows, scan
+from .conftest import client_for
 
 HDR = {"X-Bilderkatalog": "1"}
 
@@ -78,7 +77,7 @@ def test_api_requires_ids_and_matching_confirmation(tmp_path, library, papierkor
     scan(conn, library)
     ids = [r["id"] for r in conn.execute("SELECT id FROM photo ORDER BY name")]
     conn.close()
-    client = TestClient(create_app(state))
+    client = client_for(create_app(state))
 
     preview = client.post("/api/delete/preview", json={"ids": ids[:2]}, headers=HDR).json()
     assert preview["count"] == 2 and len(preview["examples"]) == 2
