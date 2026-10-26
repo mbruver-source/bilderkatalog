@@ -17,7 +17,7 @@ dependencies = [
     "httpx>=0.27",
     "platformdirs>=4.0",
     "python-dotenv>=1.0",
-    "reverse_geocoder>=1.5",
+    "reverse_geocoder==1.5.1",  # data/ortsnamen_de.tsv.gz passt genau zu dieser Ortsliste
     "pillow>=10",
     "pywin32>=306; sys_platform == 'win32'",
     "pywebview>=5; sys_platform == 'win32'",
