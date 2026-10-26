@@ -1,7 +1,7 @@
 """Erzeugt bilderkatalog/data/ortsnamen_de.tsv.gz – deutsche Orts- und Regionsnamen.
 
-Das Ortsverzeichnis von reverse_geocoder enthält nur ASCII-Namen ("Rosbach vor der
-Hohe", "Munich", "Bavaria"). Dieses Skript ergänzt aus den Originaldaten von GeoNames
+Das Ortsverzeichnis von reverse_geocoder enthält nur ASCII-Namen ("Furstenfeldbruck",
+"Munich", "Bavaria"). Dieses Skript ergänzt aus den Originaldaten von GeoNames
 (CC BY 4.0) die richtige Schreibweise bzw. den deutschen Namen und die Einwohnerzahl.
 
 Nur für Entwickler, einmalig bzw. nach einem Update von reverse_geocoder:

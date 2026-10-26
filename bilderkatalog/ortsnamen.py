@@ -1,6 +1,6 @@
 """Deutsche Orts- und Regionsnamen für das GeoNames-Ortsverzeichnis von reverse_geocoder.
 
-reverse_geocoder kennt nur ASCII-Namen ("Munich", "Rosbach vor der Hohe", "Bavaria").
+reverse_geocoder kennt nur ASCII-Namen ("Munich", "Furstenfeldbruck", "Bavaria").
 data/ortsnamen_de.tsv.gz (erzeugt mit tools/ortsnamen.py, Daten © GeoNames, CC BY 4.0)
 liefert dazu den deutschen Namen bzw. die richtige Schreibweise und die Einwohnerzahl.
 """

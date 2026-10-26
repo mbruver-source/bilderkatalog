@@ -137,7 +137,7 @@ def test_search_places_finds_german_names_and_coordinates(conn):
     assert places.search(conn, "Köln")[0]["city"] == "Köln"
     assert places.search(conn, "Koeln")[0]["city"] == "Köln"
     assert places.search(conn, "Munich")[0]["city"] == "München"  # englischer Name findet auch
-    assert places.search(conn, "rosbach vor der hohe")[0]["city"] == "Rosbach vor der Höhe"
+    assert places.search(conn, "furstenfeldbruck")[0]["city"] == "Fürstenfeldbruck"
     genf = places.search(conn, "Genf")[0]  # fehlt im Datensatz von reverse_geocoder, ist nachgetragen
     assert (genf["city"], genf["country_code"]) == ("Genf", "CH")
     paris = places.search(conn, "Paris")[0]
