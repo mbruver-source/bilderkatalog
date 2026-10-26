@@ -95,7 +95,7 @@ Ein Klick auf einen Eintrag in der Seitenleiste zeigt nur die passenden Bilder. 
 |---|---|
 | **Alle Bilder** | den ganzen Katalog |
 | **★ Favoriten** | alle Bilder mit Stern |
-| **Alben** | deine eigenen Zusammenstellungen (siehe [Alben](#7-alben)) |
+| **Alben** | deine eigenen Zusammenstellungen (siehe [Alben und Favoriten](#7-alben-und-favoriten)) |
 | **Zeitleiste** | Jahre, darunter die Monate |
 | **Orte** | Länder, darunter die Städte (aus den GPS-Daten) |
 | **Ordner** | die Ordner, in denen die Bilder liegen |
