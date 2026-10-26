@@ -14,6 +14,9 @@ SORTS = {
     "place": "country_code IS NULL, country_code, city, taken_at",
     "size": "size DESC, name",
 }
+DUP_ORDER = "p.dup_group, p.dup_rank"  # Kopien direkt nebeneinander
+
+BOOL_FILTERS = ("no_date", "no_gps", "partial", "favorite", "dups", "unique", "date_manual")
 
 # Kameraname ohne doppelten Hersteller ("Canon" + "Canon EOS 600D" → "Canon EOS 600D")
 CAMERA = (
@@ -23,7 +26,8 @@ CAMERA = (
 
 PHOTO_COLUMNS = (
     "id, source, online_only, meta_level, local_path, name, parent_path, size, mime, is_video, taken_at, date_source, year, month, "
-    "camera_make, camera_model, width, height, lat, lon, city, region, country_code, web_url"
+    "camera_make, camera_model, width, height, lat, lon, city, region, country_code, web_url, "
+    "favorite, dup_group, dup_rank"
 )
 
 
@@ -43,6 +47,10 @@ class Filter:
     no_date: bool = False          # nur Bilder ohne EXIF-Aufnahmedatum
     no_gps: bool = False
     partial: bool = False          # nur Datum bekannt (Details noch nicht nachgeladen)
+    favorite: bool = False
+    dups: bool = False             # nur Dateien, die mehrfach vorhanden sind
+    unique: bool = False           # Kopien ausblenden (nur Hauptexemplare)
+    date_manual: bool = False      # Datum von Hand gesetzt
 
     @classmethod
     def from_dict(cls, data: dict) -> "Filter":
@@ -93,11 +101,19 @@ class Filter:
         elif self.media == "image":
             clauses.append("p.is_video = 0")
         if self.no_date:
-            clauses.append("(p.date_source IS NULL OR p.date_source <> 'exif')")
+            clauses.append("(p.date_source IS NULL OR p.date_source NOT IN ('exif', 'manual'))")
         if self.no_gps:
             clauses.append("p.lat IS NULL")
         if self.partial:
             clauses.append("p.meta_level = 'partial'")
+        if self.favorite:
+            clauses.append("p.favorite = 1")
+        if self.dups:
+            clauses.append("p.dup_group IS NOT NULL")
+        if self.unique:
+            clauses.append("(p.dup_rank IS NULL OR p.dup_rank = 0)")
+        if self.date_manual:
+            clauses.append("p.date_source = 'manual'")
         return " AND ".join(clauses), params
 
 
@@ -109,7 +125,7 @@ def list_photos(
     conn: sqlite3.Connection, flt: Filter, sort: str = "date_desc", limit: int = 200, offset: int = 0
 ) -> dict:
     where, params = flt.where()
-    order = SORTS.get(sort, SORTS["date_desc"])
+    order = DUP_ORDER if flt.dups else SORTS.get(sort, SORTS["date_desc"])
     total, partial = conn.execute(
         f"SELECT COUNT(*), COALESCE(SUM(p.meta_level = 'partial'), 0) FROM photo p WHERE {where}", params
     ).fetchone()
@@ -162,9 +178,14 @@ def facets(conn: sqlite3.Connection) -> dict:
             "GROUP BY camera ORDER BY n DESC"
         ),
         "special": dict(conn.execute(
-            "SELECT COALESCE(SUM(date_source IS NULL OR date_source <> 'exif'), 0) AS no_date, "
+            "SELECT COALESCE(SUM(date_source IS NULL OR date_source NOT IN ('exif', 'manual')), 0) AS no_date, "
             "COALESCE(SUM(lat IS NULL), 0) AS no_gps, COALESCE(SUM(is_video), 0) AS videos, "
-            "COALESCE(SUM(meta_level = 'partial'), 0) AS partial "
+            "COALESCE(SUM(meta_level = 'partial'), 0) AS partial, "
+            "COALESCE(SUM(favorite), 0) AS favorites, "
+            "COALESCE(SUM(date_source = 'manual'), 0) AS date_manual, "
+            "COALESCE(SUM(dup_group IS NOT NULL), 0) AS dup_files, "
+            "COALESCE(SUM(dup_rank > 0), 0) AS dup_copies, "
+            "COUNT(DISTINCT dup_group) AS dup_groups "
             "FROM photo WHERE deleted = 0"
         ).fetchone()),
     }
@@ -182,7 +203,7 @@ def events(
     where, params = flt.where()
     rows = conn.execute(
         f"SELECT p.id, p.taken_at, p.city, p.country_code FROM photo p "
-        f"WHERE {where} AND p.taken_at IS NOT NULL AND p.date_source <> 'file' ORDER BY p.taken_at",
+        f"WHERE {where} AND p.taken_at IS NOT NULL AND p.date_source NOT IN ('file', 'manual') ORDER BY p.taken_at",
         params,
     ).fetchall()
 

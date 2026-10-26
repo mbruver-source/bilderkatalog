@@ -14,7 +14,10 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import __version__, albums, config, db, export, geocode, local_source, queries, sync, updates, winfiles
+from . import (
+    __version__, albums, config, dates, db, duplicates, export, geocode, local_source, queries, sicherung,
+    sync, updates, winfiles,
+)
 from .auth import Auth, AuthError
 from .graph_client import GraphClient, GraphError, NotLoggedIn
 from .jobs import Job
@@ -38,7 +41,8 @@ class State:
         self.login_job = Job("login")
         conn = db.connect(self.db_path)
         try:
-            db.init(conn)
+            if db.init(conn):  # neu angelegt oder migriert
+                duplicates.refresh(conn)
         finally:
             conn.close()
 
@@ -107,6 +111,23 @@ class AlbumIn(BaseModel):
 class SelectionIn(BaseModel):
     ids: list[str] | None = None
     filter: dict | None = None  # alternativ: alle Bilder der aktuellen Ansicht
+
+
+class FavoriteIn(SelectionIn):
+    value: bool = True
+
+
+class DateIn(SelectionIn):
+    date: str = ""
+
+
+class BackupIn(BaseModel):
+    target_dir: str | None = None
+
+
+class RestoreIn(BaseModel):
+    data: dict | None = None
+    auto: str | None = None
 
 
 class ExportIn(SelectionIn):
@@ -255,6 +276,7 @@ def create_app(state: State | None = None) -> FastAPI:
         if state.busy():
             raise HTTPException(409, "Bitte warten, bis die laufende Aufgabe beendet ist.")
         sync.remove_scope(conn, item_id)
+        duplicates.refresh(conn)
         return {"ok": True}
 
     # -- Hintergrundaufgaben ---------------------------------------------------
@@ -295,6 +317,8 @@ def create_app(state: State | None = None) -> FastAPI:
                     total += sync.sync_scope(conn, client, scope["item_id"], scope["delta_link"], progress)
                 job.update("Orte werden bestimmt …", 0, 0)
                 geocode.geocode_pending(conn)
+                job.update("Suche doppelte Dateien …", 0, 0)
+                duplicates.refresh(conn)
                 message = f"Fertig: {total} neue oder geänderte Dateien."
                 if skipped:
                     message += f" Übersprungen (nicht angemeldet): {', '.join(skipped)}"
@@ -325,6 +349,7 @@ def create_app(state: State | None = None) -> FastAPI:
                 )
                 job.update("Orte werden bestimmt …")
                 geocode.geocode_pending(conn)
+                duplicates.refresh(conn)
                 job.update(f"Fertig: Details für {result['processed']} Bilder geladen, Speicher wieder freigegeben.")
                 return result
             finally:
@@ -354,7 +379,32 @@ def create_app(state: State | None = None) -> FastAPI:
         result = queries.get_photo(conn, photo_id)
         if not result:
             raise HTTPException(404)
+        result["copies"] = duplicates.copies_of(conn, photo_id) if result["dup_group"] else []
+        result["date_precision"] = dates.precision_of(conn, photo_id)
         return result
+
+    @app.post("/api/favorites")
+    def favorites(body: FavoriteIn, conn=Conn):
+        ids = _selection(conn, body)
+        changed = albums.set_favorite(conn, ids, body.value)
+        # Ein Favorit wird bevorzugt Hauptexemplar seiner Duplikatgruppe
+        if changed and (len(ids) > 500 or conn.execute(
+            f"SELECT 1 FROM photo WHERE dup_group IS NOT NULL AND id IN ({','.join('?' * len(ids))}) LIMIT 1", ids
+        ).fetchone()):
+            duplicates.refresh(conn)
+        return {"changed": changed}
+
+    @app.post("/api/dates")
+    def set_dates(body: DateIn, conn=Conn):
+        return {"changed": dates.set_date(conn, _selection(conn, body), body.date)}
+
+    @app.post("/api/dates/reset")
+    def reset_dates(body: SelectionIn, conn=Conn):
+        return {"changed": dates.reset(conn, _selection(conn, body))}
+
+    @app.post("/api/duplicates/refresh")
+    def refresh_duplicates(conn=Conn):
+        return duplicates.refresh(conn)
 
     @app.post("/api/photos/{photo_id}/enrich")
     def enrich_photo(photo_id: str, conn=Conn):
@@ -383,14 +433,14 @@ def create_app(state: State | None = None) -> FastAPI:
     def thumb(photo_id: str, size: str = "medium", conn=Conn):
         if size not in local_source.THUMB_PX:
             raise HTTPException(400)
-        row = conn.execute("SELECT source, local_path FROM photo WHERE id = ?", (photo_id,)).fetchone()
+        row = conn.execute("SELECT source, local_path, is_video FROM photo WHERE id = ?", (photo_id,)).fetchone()
         if not row:
             raise HTTPException(404)
         cache = local_source.thumb_cache_file(photo_id, size)
         if cache.exists():
             return FileResponse(cache, media_type="image/jpeg", headers={"Cache-Control": "max-age=604800"})
         if row["source"] == "local":
-            data = _local_thumb(row["local_path"], size)
+            data = _local_thumb(row["local_path"], size, bool(row["is_video"]))
         else:
             try:
                 data = state.client.thumbnail(photo_id, size)
@@ -435,6 +485,29 @@ def create_app(state: State | None = None) -> FastAPI:
     def remove_from_album(album_id: int, body: SelectionIn, conn=Conn):
         _require_album(conn, album_id)
         return {"removed": albums.remove_photos(conn, album_id, _selection(conn, body))}
+
+    # -- Sicherung der eigenen Einträge -----------------------------------------
+
+    @app.get("/api/backups")
+    def backups():
+        return {"auto": sicherung.list_auto(), "auto_dir": str(sicherung.auto_dir())}
+
+    @app.post("/api/backup")
+    def backup(body: BackupIn, conn=Conn):
+        target = Path(body.target_dir).expanduser() if body.target_dir else config.default_export_dir()
+        return sicherung.write(conn, target)
+
+    @app.post("/api/restore")
+    def restore(body: RestoreIn, conn=Conn):
+        if body.auto:
+            data = sicherung.read_auto(body.auto)
+        elif body.data is not None:
+            data = body.data
+        else:
+            raise HTTPException(400, "Keine Sicherung angegeben.")
+        result = sicherung.restore(conn, data)
+        duplicates.refresh(conn)  # Favoriten/Alben beeinflussen das Hauptexemplar
+        return result
 
     # -- Export -----------------------------------------------------------------
 
@@ -481,21 +554,24 @@ def create_app(state: State | None = None) -> FastAPI:
     return app
 
 
-def _local_thumb(path: str | None, size: str) -> bytes | None:
-    """Vorschau aus der lokalen Datei – nie für "nur online"-Dateien (kein Download)."""
+def _local_thumb(path: str | None, size: str, is_video: bool) -> bytes | None:
+    """Vorschau einer lokalen Datei. "Nur online"-Dateien und Videos über Windows –
+    OneDrive liefert deren Vorschau aus der Cloud, ohne die Datei herunterzuladen."""
     if not path:
         return None
     try:
-        if winfiles.is_online_only(os.stat(path)):
-            return None
+        online = winfiles.is_online_only(os.stat(path))
     except OSError:
         return None
-    return local_source.thumbnail_bytes(path, size)
+    data = None
+    if not online and not is_video:
+        data = local_source.thumbnail_bytes(path, size)  # schnell und in voller Qualität
+    return data or winfiles.shell_thumbnail(Path(path), local_source.THUMB_PX[size])
 
 
 def _filter_params(request: Request) -> dict:
     params = dict(request.query_params)
-    for key in ("no_date", "no_gps", "partial"):
+    for key in queries.BOOL_FILTERS:
         if key in params:
             params[key] = params[key] in ("1", "true", "on")
     return params

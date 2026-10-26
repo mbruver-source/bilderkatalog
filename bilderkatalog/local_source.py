@@ -239,15 +239,24 @@ def read_file(path: str, st: os.stat_result, scope_id: str) -> dict:
 
 
 def _upsert(conn: sqlite3.Connection, row: dict, previous: sqlite3.Row | None) -> None:
-    # Wurde die Datei ersetzt (neue Datei-ID am selben Pfad), Albumzuordnung übernehmen.
+    # Wurde die Datei ersetzt (neue Datei-ID am selben Pfad), eigene Einträge übernehmen:
+    # Alben, Favorit und ein von Hand gesetztes Datum.
     if previous is not None and previous["id"] != row["id"]:
-        conn.execute("INSERT OR IGNORE INTO photo(id, name) VALUES (?, ?)", (row["id"], row["name"]))
+        new_id, old_id = row["id"], previous["id"]
+        conn.execute("INSERT OR IGNORE INTO photo(id, name) VALUES (?, ?)", (new_id, row["name"]))
         conn.execute(
             "INSERT OR IGNORE INTO album_photo(album_id, photo_id, added_at) "
             "SELECT album_id, ?, added_at FROM album_photo WHERE photo_id = ?",
-            (row["id"], previous["id"]),
+            (new_id, old_id),
         )
-        conn.execute("DELETE FROM photo WHERE id = ?", (previous["id"],))
+        conn.execute("UPDATE photo SET favorite = (SELECT favorite FROM photo WHERE id = ?) WHERE id = ?",
+                     (old_id, new_id))
+        conn.execute(
+            "INSERT OR IGNORE INTO date_override(photo_id, taken_at, precision, auto_taken_at, auto_date_source) "
+            "SELECT ?, taken_at, precision, auto_taken_at, auto_date_source FROM date_override WHERE photo_id = ?",
+            (new_id, old_id),
+        )
+        conn.execute("DELETE FROM photo WHERE id = ?", (old_id,))
     conn.execute(
         """
         INSERT INTO photo (id, source, local_path, scope_id, mtime, online_only, meta_level, name,

@@ -41,10 +41,12 @@
           <h2 id="view-title">Alle Bilder</h2>
           <span class="muted" id="view-count"></span>
           <span class="spacer"></span>
+          <label class="switch" title="Von mehrfach vorhandenen Dateien nur das Hauptexemplar zeigen">
+            <input type="checkbox" id="hide-copies"> Kopien ausblenden</label>
           <button id="select-mode-btn" title="Bilder per Klick auswählen – für ZIP, Album oder Nachladen">Auswählen</button>
           <button id="events-btn" title="Zeitlich und örtlich zusammenhängende Bilder finden">Ereignisse</button>
           <button id="view-album-btn" title="Alle Bilder dieser Ansicht in ein Album übernehmen">Ansicht → Album</button>
-          <button id="view-enrich-btn" hidden title="Vorschau und Details nur für die Bilder dieser Ansicht nachladen">Vorschau nachladen</button>
+          <button id="view-enrich-btn" hidden title="Ort und Kamera nur für die Bilder dieser Ansicht nachladen">Details nachladen</button>
           <button id="view-zip-btn" title="Alle Bilder dieser Ansicht als ZIP herunterladen">Ansicht → ZIP</button>
         </div>
         <div id="grid" class="grid"></div>
@@ -56,10 +58,12 @@
     <div class="selbar" id="selbar" hidden>
       <span id="sel-count"></span>
       <span class="muted" id="sel-hint">Bilder anklicken, Shift-Klick für einen Bereich</span>
+      <button id="sel-fav" title="Als Favorit markieren (F)">★ Favorit</button>
       <button id="sel-album">Zu Album …</button>
+      <button id="sel-date" title="Aufnahmedatum von Hand setzen (nur im Katalog)">Datum …</button>
       <button id="sel-remove" hidden>Aus Album entfernen</button>
       <button id="sel-zip">Als ZIP …</button>
-      <button id="sel-enrich" title="Vorschau und Details der ausgewählten Nur-online-Bilder nachladen">Vorschau nachladen</button>
+      <button id="sel-enrich" title="Ort und Kamera der ausgewählten Nur-online-Bilder nachladen">Details nachladen</button>
       <button id="sel-all">Alle geladenen</button>
       <button class="link" id="sel-clear">Auswahl aufheben</button>
     </div>
@@ -91,6 +95,45 @@
         <button value="ok" class="primary">Hinzufügen</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- Datum setzen -->
+  <dialog id="date-dlg">
+    <form method="dialog" id="date-form">
+      <h3>Aufnahmedatum setzen</h3>
+      <p class="muted" id="date-info"></p>
+      <label>Datum
+        <input name="date" placeholder="z. B. 1998, 07.1998 oder 14.07.1998 10:30" autocomplete="off" spellcheck="false">
+      </label>
+      <p class="muted">Gilt nur im Katalog, die Dateien bleiben unverändert. Erneutes Einlesen überschreibt es nicht.</p>
+      <p class="error" id="date-error"></p>
+      <div class="actions">
+        <button value="reset" id="date-reset" formnovalidate title="Datum aus Kamera, Dateiname oder Dateizeit wiederherstellen">Automatisch</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Abbrechen</button>
+        <button value="ok" class="primary">Speichern</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Sicherung -->
+  <dialog id="backup-dlg" class="wide">
+    <h3>Eigene Einträge sichern</h3>
+    <p class="muted">Alben, Favoriten und von Hand gesetzte Daten gibt es nur in diesem Programm, nicht in OneDrive.
+      Eine Sicherung ist eine kleine Datei, die sich auch auf einem anderen PC wieder einspielen lässt.</p>
+    <h4>Sicherung speichern</h4>
+    <form id="backup-form" class="path-form">
+      <input name="target_dir" spellcheck="false" title="Zielordner">
+      <button class="primary">Speichern</button>
+    </form>
+    <p class="muted" id="backup-msg"></p>
+    <h4>Wiederherstellen</h4>
+    <p><label class="file-btn"><input type="file" id="restore-file" accept=".json,application/json"> Sicherungsdatei wählen …</label></p>
+    <p class="muted">Automatische Sicherungen (beim Schließen des Programms, wenn sich etwas geändert hat):</p>
+    <ul id="auto-backups" class="scope-list"></ul>
+    <p class="muted">Wiederherstellen ergänzt nur: Vorhandene Alben bleiben, Alben gleichen Namens werden aufgefüllt.</p>
+    <p id="restore-msg"></p>
+    <div class="actions"><button id="backup-close" class="primary">Schließen</button></div>
   </dialog>
 
   <!-- Export -->
@@ -166,8 +209,8 @@
     <form method="dialog">
       <h3>Details nachladen</h3>
       <p id="enrich-info"></p>
-      <p class="muted">Jedes Bild wird einzeln aus OneDrive geladen. Das Programm liest dann Ort, Kamera und Vorschau aus
-        und gibt den Speicher sofort wieder frei (wie „Speicherplatz freigeben“ im Explorer). In OneDrive wird nichts verändert.
+      <p class="muted">Die Vorschaubilder kommen ohne Download von OneDrive. Für Ort und Kamera wird jedes Bild einzeln geladen,
+        ausgelesen und der Speicher sofort wieder freigegeben (wie „Speicherplatz freigeben“ im Explorer). In OneDrive wird nichts verändert.
         Du kannst jederzeit abbrechen und später weitermachen. Der OneDrive-Client muss dafür laufen.</p>
       <div class="actions">
         <button value="cancel">Abbrechen</button>

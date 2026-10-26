@@ -157,12 +157,27 @@ def _window() -> int:
     app.state.bk.shutdown()
     server.should_exit = True
     thread.join(timeout=5)
+    _auto_backup(app.state.bk)
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.flush()
         except Exception:
             pass
     os._exit(0)
+
+
+def _auto_backup(state) -> None:
+    """Alben, Favoriten und Datumskorrekturen beim Beenden sichern (nur bei Änderungen)."""
+    from . import sicherung
+
+    try:
+        conn = state.connect()
+        try:
+            sicherung.auto_backup(conn)
+        finally:
+            conn.close()
+    except Exception as err:  # eine fehlende Sicherung darf das Beenden nie verhindern
+        print(f"Automatische Sicherung fehlgeschlagen: {err}", file=sys.stderr)
 
 
 def _laufkennung_belegen(wartezeit: float = 20.0) -> list | None:

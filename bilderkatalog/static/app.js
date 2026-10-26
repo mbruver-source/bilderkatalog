@@ -41,6 +41,7 @@ const monthName = (m) => new Date(2000, m - 1, 1).toLocaleString("de-DE", { mont
 const formatDate = (iso) => iso ? new Date(iso).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }) : "–";
 const formatDay = (iso) => iso ? new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "short", year: "numeric" }) : "";
 const formatSize = (bytes) => bytes == null ? "–" : bytes > 1e6 ? `${(bytes / 1e6).toFixed(1)} MB` : `${Math.round(bytes / 1e3)} kB`;
+const files = (n) => `${n.toLocaleString("de-DE")} ${n === 1 ? "Datei" : "Dateien"}`;
 const thumbUrl = (id, size = "medium") => `/api/thumb/${encodeURIComponent(id)}?size=${size}`;
 
 function toast(message) {
@@ -71,7 +72,26 @@ const state = {
   lastJobStates: {},
   open: new Set(),
   selectMode: false,
+  hideCopies: loadSetting("hideCopies", false),
 };
+
+// Kleine Vorlieben pro Rechner; ohne Speicher (z. B. privates Fenster) gelten die Vorgaben
+function loadSetting(key, fallback) {
+  try { const v = localStorage.getItem("bk." + key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; }
+}
+function saveSetting(key, value) {
+  try { localStorage.setItem("bk." + key, JSON.stringify(value)); } catch { /* egal */ }
+}
+
+// Datum mit der Genauigkeit, mit der es von Hand gesetzt wurde
+function formatTaken(iso, precision) {
+  if (!iso) return "–";
+  const d = new Date(iso);
+  if (precision === "year") return `${d.getFullYear()} (ungefähr)`;
+  if (precision === "month") return `${monthName(d.getMonth() + 1)} ${d.getFullYear()} (ungefähr)`;
+  if (precision === "day") return d.toLocaleDateString("de-DE", { dateStyle: "medium" });
+  return formatDate(iso);
+}
 
 // ---------- Start ----------
 
@@ -247,12 +267,16 @@ function renderSidebar() {
   const f = state.facets;
   const nav = $("#sidebar");
   nav.replaceChildren();
-  nav.append(el("ul", {}, el("li", {}, navItem("Alle Bilder", f.total, {}, "Alle Bilder"))));
+  nav.append(el("ul", {},
+    el("li", {}, navItem("Alle Bilder", f.total, {}, "Alle Bilder")),
+    el("li", {}, navItem("★ Favoriten", f.special.favorites, { favorite: true }, "Favoriten",
+      { tooltip: "Bilder mit Stern – Stern in der Kachel, in der Großansicht oder Taste F" }))));
 
   // Alben
   nav.append(section("Alben", state.albums.length,
     el("ul", {}, state.albums.map((a) => el("li", {}, navItem(a.name, a.n, { album: a.id }, `Album: ${a.name}`)))),
-    el("button", { class: "link new-album", onclick: newAlbum }, "+ Neues Album")));
+    el("button", { class: "link new-album", onclick: newAlbum }, "+ Neues Album"),
+    el("button", { class: "link new-album", onclick: openBackup, title: "Alben, Favoriten und Datumskorrekturen sichern" }, "Sichern / Wiederherstellen …")));
 
   // Zeitleiste: Jahr → Monat
   const years = new Map();
@@ -301,6 +325,10 @@ function renderSidebar() {
       { tooltip: "Kein EXIF-Datum: Datum stammt aus Dateiname oder Dateizeit" })),
     el("li", {}, navItem("Ohne GPS", f.special.no_gps, { no_gps: true }, "Ohne GPS-Position")),
     el("li", {}, navItem("Videos", f.special.videos, { media: "video" }, "Videos")),
+    f.special.dup_groups ? el("li", {}, navItem("Doppelte Dateien", f.special.dup_copies, { dups: true }, "Doppelte Dateien",
+      { tooltip: `${f.special.dup_groups.toLocaleString("de-DE")} Dateien sind mehrfach vorhanden, zusammen ${f.special.dup_copies.toLocaleString("de-DE")} Kopien. ` +
+        "Gleich groß und gleiche Aufnahmezeit oder gleicher Name. Nichts wird gelöscht." })) : null,
+    f.special.date_manual ? el("li", {}, navItem("Datum von Hand gesetzt", f.special.date_manual, { date_manual: true }, "Datum von Hand gesetzt")) : null,
     f.special.partial ? el("li", {}, navItem("Nur online, Details fehlen", f.special.partial, { partial: true }, "Nur online – Details fehlen",
       { tooltip: "Nur das Aufnahmedatum ist bekannt. „Details nachladen“ ergänzt Ort, Kamera und Vorschau." })) : null,
   )));
@@ -337,12 +365,15 @@ async function reload() {
   $("#view-enrich-btn").hidden = true;
   $("#view-title").textContent = state.title;
   $("#sel-remove").hidden = state.filter.album === undefined;
+  $("#hide-copies").checked = state.hideCopies;
+  $("#hide-copies").disabled = Boolean(state.filter.dups);
   await loadMore();
 }
 
 function currentQuery() {
   const search = $("#search").value.trim();
-  return { ...state.filter, q: search || undefined };
+  const unique = state.hideCopies && !state.filter.dups ? true : undefined;
+  return { ...state.filter, q: search || undefined, unique };
 }
 
 async function loadMore() {
@@ -358,10 +389,10 @@ async function loadMore() {
     state.total = data.total;
     state.complete = state.items.length >= data.total || !data.items.length;
     renderTiles(start);
-    $("#view-count").textContent = `${data.total.toLocaleString("de-DE")} Dateien`;
+    $("#view-count").textContent = files(data.total);
     state.viewPartial = data.partial;
     $("#view-enrich-btn").hidden = !data.partial;
-    $("#view-enrich-btn").textContent = `Vorschau nachladen (${data.partial.toLocaleString("de-DE")})`;
+    $("#view-enrich-btn").textContent = `Details nachladen (${data.partial.toLocaleString("de-DE")})`;
     $("#empty").hidden = data.total > 0;
   } finally {
     if (generation === state.generation) state.loading = false;
@@ -383,6 +414,14 @@ function renderTiles(start) {
   const fragment = document.createDocumentFragment();
   for (let i = start; i < state.items.length; i++) {
     const item = state.items[i];
+    if (state.filter.dups) {
+      // Ansicht "Doppelte Dateien": jede Gruppe mit eigener Überschrift, Hauptexemplar zuerst
+      if (i === 0 || state.items[i - 1].dup_group !== item.dup_group) {
+        fragment.append(el("div", { class: "group-head" }, `${item.name} · ${formatDay(item.taken_at)} · ${formatSize(item.size)}`));
+      }
+      fragment.append(tile(item, i));
+      continue;
+    }
     const key = groupKey(item);
     if (key && (i === 0 || groupKey(state.items[i - 1]) !== key)) {
       fragment.append(el("div", { class: "group-head" }, key));
@@ -395,13 +434,20 @@ function renderTiles(start) {
 function tile(item, index) {
   const img = el("img", { loading: "lazy", src: thumbUrl(item.id), alt: item.name, title: `${item.name}\n${formatDate(item.taken_at)}` });
   img.addEventListener("error", () => img.replaceWith(el("div", { class: "noimg" },
-    item.online_only ? el("span", { class: "cloud", title: "Nur online – Vorschau nach „Details nachladen“" }, "☁") : null,
+    item.online_only ? el("span", { class: "cloud", title: "Nur online – OneDrive liefert keine Vorschau (läuft der OneDrive-Client?)" }, "☁") : null,
     el("span", {}, item.name), el("span", {}, formatDay(item.taken_at)))), { once: true });
   const node = el("div", { class: "tile" + (state.selected.has(item.id) ? " selected" : ""), "data-index": index },
     img,
     el("span", { class: "check", role: "checkbox", "aria-label": "Auswählen" }),
     item.is_video ? el("span", { class: "badge" }, "▶ Video") : null,
+    state.filter.dups ? el("span", { class: "badge left" + (item.dup_rank ? "" : " main") },
+      item.dup_rank ? "Kopie" : "Hauptexemplar") : null,
+    el("button", {
+      class: "fav" + (item.favorite ? " on" : ""), title: item.favorite ? "Favorit entfernen" : "Als Favorit markieren",
+      "aria-label": "Favorit", onclick: (event) => { event.stopPropagation(); toggleFavorite(item); },
+    }, item.favorite ? "★" : "☆"),
   );
+  if (state.filter.dups) node.title = item.parent_path || "";
   node.addEventListener("click", (event) => {
     if (state.selectMode || event.target.classList.contains("check") || event.shiftKey || event.ctrlKey || event.metaKey || state.selected.size) {
       toggleSelect(index, event.shiftKey);
@@ -415,6 +461,86 @@ function tile(item, index) {
 new IntersectionObserver((entries) => {
   if (entries.some((e) => e.isIntersecting)) loadMore();
 }, { rootMargin: "600px" }).observe($("#sentinel"));
+
+$("#hide-copies").addEventListener("change", (event) => {
+  state.hideCopies = event.target.checked;
+  saveSetting("hideCopies", state.hideCopies);
+  reload();
+});
+
+function updateTile(item) {
+  const index = state.items.indexOf(item);
+  document.querySelector(`.tile[data-index="${index}"]`)?.replaceWith(tile(item, index));
+}
+
+async function toggleFavorite(item) {
+  const value = !item.favorite;
+  try {
+    await api("/api/favorites", { method: "POST", body: { ids: [item.id], value } });
+  } catch (err) {
+    return toast(err.message);
+  }
+  item.favorite = value ? 1 : 0;
+  updateTile(item);
+  // Ein Favorit wird Hauptexemplar – die Duplikat-Ansicht danach neu ordnen
+  if (state.filter.dups) { if ($("#lightbox").open) state.reloadOnClose = true; else reload(); }
+  if (state.items[state.lightboxIndex] === item && $("#lightbox").open) renderLightbox();
+  loadSidebar();
+}
+
+$("#sel-fav").addEventListener("click", async () => {
+  const ids = [...state.selected];
+  // Sind schon alle Favoriten, wird der Stern entfernt
+  const value = !state.items.filter((i) => state.selected.has(i.id)).every((i) => i.favorite);
+  try {
+    const res = await api("/api/favorites", { method: "POST", body: { ids, value } });
+    toast(value ? `${files(res.changed)} als Favorit markiert.` : `Stern bei ${files(res.changed)} entfernt.`);
+  } catch (err) {
+    return toast(err.message);
+  }
+  for (const item of state.items) if (state.selected.has(item.id)) item.favorite = value ? 1 : 0;
+  clearSelection();
+  state.items.forEach((item) => { if (ids.includes(item.id)) updateTile(item); });
+  loadSidebar();
+});
+
+$("#sel-date").addEventListener("click", () => openDate({ ids: [...state.selected] }, `${state.selected.size} ausgewählte Dateien`));
+
+function openDate(selection, info, current = "") {
+  const dlg = $("#date-dlg");
+  const form = $("#date-form");
+  $("#date-info").textContent = info;
+  $("#date-error").textContent = "";
+  form.date.value = current;
+  form.onsubmit = async (event) => {
+    const action = event.submitter?.value;
+    if (action === "cancel") return;
+    event.preventDefault();
+    try {
+      const res = action === "reset"
+        ? await api("/api/dates/reset", { method: "POST", body: selection })
+        : await api("/api/dates", { method: "POST", body: { ...selection, date: form.date.value } });
+      dlg.close();
+      toast(action === "reset" ? `Automatisches Datum für ${files(res.changed)} wiederhergestellt.`
+        : `Datum für ${files(res.changed)} gesetzt.`);
+      clearSelection();
+      loadSidebar();
+      if ($("#lightbox").open) await refreshItem(state.items[state.lightboxIndex]);
+      else reload();
+    } catch (err) {
+      $("#date-error").textContent = err.message;
+    }
+  };
+  dlg.showModal();
+  form.date.focus();
+}
+
+async function refreshItem(item) {
+  const updated = await api(`/api/photos/${encodeURIComponent(item.id)}`);
+  Object.assign(item, updated);
+  updateTile(item);
+  renderLightbox();
+}
 
 let searchTimer;
 $("#search").addEventListener("input", () => {
@@ -450,7 +576,7 @@ function refreshSelection() {
   $("#selbar").hidden = n === 0 && !state.selectMode;
   $("#sel-count").textContent = `${n} ausgewählt`;
   $("#sel-hint").hidden = n > 0;
-  for (const id of ["#sel-album", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
+  for (const id of ["#sel-fav", "#sel-album", "#sel-date", "#sel-zip", "#sel-enrich", "#sel-remove", "#sel-clear"]) $(id).disabled = n === 0;
   $("#select-mode-btn").textContent = state.selectMode ? "Auswahl beenden" : "Auswählen";
   $("#select-mode-btn").classList.toggle("primary", Boolean(state.selectMode));
 }
@@ -484,12 +610,12 @@ $("#sel-remove").addEventListener("click", async () => {
 
 $("#view-album-btn").addEventListener("click", () => chooseAlbum({ filter: currentQuery() }, state.title));
 $("#view-enrich-btn").addEventListener("click", () => openEnrich({ filter: currentQuery() },
-  `${state.viewPartial.toLocaleString("de-DE")} Bilder in „${state.title}“ liegen nur online. Ihre Vorschau und Details werden nachgeladen.`));
+  `${state.viewPartial.toLocaleString("de-DE")} Bilder in „${state.title}“ liegen nur online. Ort und Kamera werden nachgeladen.`));
 $("#sel-enrich").addEventListener("click", () => {
   const ids = [...state.selected];
   const partial = state.items.filter((i) => state.selected.has(i.id) && i.meta_level === "partial").length;
-  if (!partial) return toast("Für die ausgewählten Bilder ist die Vorschau schon vorhanden.");
-  openEnrich({ ids }, `${partial} der ausgewählten Bilder liegen nur online. Ihre Vorschau und Details werden nachgeladen.`);
+  if (!partial) return toast("Für die ausgewählten Bilder sind die Details schon vorhanden.");
+  openEnrich({ ids }, `${partial} der ausgewählten Bilder liegen nur online. Ort und Kamera werden nachgeladen.`);
 });
 $("#view-zip-btn").addEventListener("click", () => openExport({ filter: currentQuery() }, `${state.total} Dateien dieser Ansicht`, state.title));
 
@@ -525,6 +651,66 @@ function chooseAlbum(selection, suggestedName = "") {
     }
   };
   dlg.showModal();
+}
+
+// ---------- Sicherung ----------
+
+async function openBackup() {
+  const form = $("#backup-form");
+  form.target_dir.value = form.target_dir.value || state.exportDir || "";
+  $("#backup-msg").textContent = "";
+  $("#restore-msg").textContent = "";
+  $("#restore-file").value = "";
+  $("#backup-dlg").showModal();
+  const list = $("#auto-backups");
+  list.replaceChildren(el("li", { class: "muted" }, "Lade …"));
+  try {
+    const data = await api("/api/backups");
+    list.replaceChildren(...(data.auto.length ? data.auto.map((b) => el("li", {},
+      el("span", {}, formatDate(b.created), el("span", { class: "muted" },
+        `  · ${b.albums} Alben, ${b.favorites} Favoriten, ${b.dates} Daten`)),
+      el("button", { class: "link", onclick: () => restoreBackup({ auto: b.file }) }, "Wiederherstellen"))) :
+      [el("li", { class: "muted" }, "Noch keine.")]));
+  } catch (err) {
+    list.replaceChildren(el("li", { class: "error" }, err.message));
+  }
+}
+
+$("#backup-close").addEventListener("click", () => $("#backup-dlg").close());
+$("#backup-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  try {
+    const r = await api("/api/backup", { method: "POST", body: { target_dir: event.target.target_dir.value || null } });
+    $("#backup-msg").textContent = `Gespeichert (${r.albums} Alben, ${r.favorites} Favoriten, ${r.dates} Daten): ${r.path}`;
+  } catch (err) {
+    $("#backup-msg").textContent = err.message;
+  }
+});
+$("#restore-file").addEventListener("change", async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  let data;
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    $("#restore-msg").textContent = "Die Datei ist keine gültige Sicherung.";
+    return;
+  }
+  restoreBackup({ data });
+});
+
+async function restoreBackup(body) {
+  const msg = $("#restore-msg");
+  msg.textContent = "Spiele Sicherung ein …";
+  try {
+    const r = await api("/api/restore", { method: "POST", body });
+    msg.textContent = `Fertig: ${r.albums_new} neue Alben, ${r.assigned} Albumzuordnungen, ${r.favorites} Favoriten, ${r.dates} Daten.` +
+      (r.not_found ? ` ${r.not_found} Bilder wurden im Katalog nicht gefunden (Ordner noch nicht eingelesen?).` : "");
+    await loadSidebar();
+    reload();
+  } catch (err) {
+    msg.textContent = err.message;
+  }
 }
 
 // ---------- Export ----------
@@ -606,10 +792,10 @@ async function renderLightbox() {
   const detail = await api(`/api/photos/${encodeURIComponent(item.id)}`);
   if (state.items[state.lightboxIndex] !== item) return;
   const place = [detail.city, detail.region, countryName(detail.country_code)].filter(Boolean).join(", ");
-  const sourceLabel = { exif: "Kamera (EXIF)", filename: "aus Dateiname", file: "Dateizeit" }[detail.date_source] || "–";
+  const sourceLabel = { exif: "Kamera (EXIF)", filename: "aus Dateiname", file: "Dateizeit", manual: "von Hand gesetzt" }[detail.date_source] || "–";
   const rows = [
     ["Datei", detail.name],
-    ["Aufgenommen", formatDate(detail.taken_at)],
+    ["Aufgenommen", formatTaken(detail.taken_at, detail.date_precision)],
     ["Datumsquelle", sourceLabel],
     ["Ort", detail.country_code ? place : "–"],
     ["GPS", detail.lat != null ? `${detail.lat.toFixed(5)}, ${detail.lon.toFixed(5)}` : "–"],
@@ -619,14 +805,26 @@ async function renderLightbox() {
     ["Ordner", detail.parent_path || "–"],
     ["Alben", detail.albums.map((a) => a.name).join(", ") || "–"],
   ];
+  const copies = detail.copies.length ? el("div", { class: "copies" },
+    el("p", {}, `${detail.copies.length} Exemplare dieser Datei:`),
+    el("ul", {}, detail.copies.map((c) => el("li", { class: c.id === detail.id ? "current" : null },
+      el("span", { title: `${c.parent_path}/${c.name}` }, `${c.dup_rank ? "Kopie" : "Hauptexemplar"}: ${c.parent_path}`),
+      el("button", { class: "link", title: "Im Explorer zeigen",
+        onclick: () => api(`/api/photos/${encodeURIComponent(c.id)}/reveal`, { method: "POST" }).catch((e) => toast(e.message)) }, "Zeigen")))),
+    el("p", { class: "muted" }, "Als Hauptexemplar gilt bevorzugt ein Favorit oder Albumbild, nicht eines aus Kopie- oder WhatsApp-Ordnern.")) : null;
+  const dateText = detail.date_source === "manual" ? formatTaken(detail.taken_at, detail.date_precision).replace(" (ungefähr)", "") : "";
   $("#lb-meta").replaceChildren(...[
+    el("p", {}, el("button", { class: "fav-big" + (detail.favorite ? " on" : ""), onclick: () => toggleFavorite(item), title: "Taste F" },
+      detail.favorite ? "★ Favorit" : "☆ Als Favorit markieren")),
     el("dl", {}, rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
-    detail.meta_level === "partial" ? el("p", {}, "Nur online: Ort, Kamera und Vorschau fehlen noch. ",
-      el("button", { onclick: (e) => enrichOne(item, e.currentTarget) }, "Vorschau laden")) : null,
+    detail.meta_level === "partial" ? el("p", {}, "Nur online: Ort und Kamera fehlen noch. ",
+      el("button", { onclick: (e) => enrichOne(item, e.currentTarget) }, "Details laden")) : null,
+    copies,
     detail.source === "local"
       ? el("p", {}, el("button", { onclick: () => api(`/api/photos/${encodeURIComponent(item.id)}/reveal`, { method: "POST" }).catch((e) => toast(e.message)) }, "Im Explorer zeigen"))
       : detail.web_url ? el("a", { href: detail.web_url, target: "_blank", rel: "noopener" }, "In OneDrive öffnen ↗") : null,
-    el("p", {}, el("button", { onclick: () => { $("#lightbox").close(); chooseAlbum({ ids: [item.id] }); } }, "Zu Album …")),
+    el("p", {}, el("button", { onclick: () => { $("#lightbox").close(); chooseAlbum({ ids: [item.id] }); } }, "Zu Album …"), " ",
+      el("button", { onclick: () => openDate({ ids: [item.id] }, item.name, dateText) }, "Datum ändern …")),
   ].filter(Boolean));  // replaceChildren würde null als Text "null" einfügen
 }
 
@@ -644,7 +842,7 @@ async function enrichOne(item, button) {
     applyStatus(await api("/api/status"));
   } catch (err) {
     button.disabled = false;
-    button.textContent = "Vorschau laden";
+    button.textContent = "Details laden";
     toast(err.message);
   }
 }
@@ -660,9 +858,15 @@ function stepLightbox(delta) {
 $("#lb-prev").addEventListener("click", () => stepLightbox(-1));
 $("#lb-next").addEventListener("click", () => stepLightbox(1));
 $("#lb-close").addEventListener("click", () => $("#lightbox").close());
+$("#lightbox").addEventListener("close", () => {
+  if (state.reloadOnClose) { state.reloadOnClose = false; reload(); }
+});
 $("#lightbox").addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft") stepLightbox(-1);
   if (event.key === "ArrowRight") stepLightbox(1);
+  if (event.key.toLowerCase() === "f" && !event.ctrlKey && !event.altKey && state.items[state.lightboxIndex]) {
+    toggleFavorite(state.items[state.lightboxIndex]);
+  }
 });
 
 // ---------- Ordnerauswahl ----------

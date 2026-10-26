@@ -215,3 +215,34 @@ dialog h4 { margin: 16px 0 4px; font-size: 13px; }
   .lb-body img { max-width: calc(100% - 80px); max-height: 60vh; }
 }
 @media (min-width: 761px) { #menu-btn { display: none; } }
+
+/* Favoriten */
+.tile .fav {
+  position: absolute; top: 4px; right: 4px; border: none; background: none; padding: 2px 6px;
+  font-size: 20px; line-height: 1; color: #fff; text-shadow: 0 1px 3px #000c; opacity: 0; transition: opacity .1s;
+}
+.tile:hover .fav, .tile .fav.on, .tile .fav:focus-visible { opacity: 1; }
+.tile .fav.on { color: #ffc93c; }
+.tile .fav:hover { background: none; transform: scale(1.15); }
+.lb-meta button.fav-big.on { color: #ffc93c; border-color: #ffc93c80; }
+
+/* Doppelte Dateien */
+.tile .badge.left { right: auto; left: 6px; bottom: 6px; }
+.tile .badge.main { background: var(--accent); color: var(--accent-text); }
+.lb-meta .copies ul { list-style: none; padding: 0; margin: 0 0 8px; }
+.lb-meta .copies li { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 2px 0; word-break: break-all; }
+.lb-meta .copies li.current { color: #ffc93c; }
+.lb-meta .copies button.link { background: none; border: none; color: #8ab4ff; padding: 2px 4px; flex: none; }
+
+/* Schalter in der Ansichtsleiste */
+.switch { display: inline-flex; align-items: center; gap: 6px; margin: 0 4px; color: var(--text); cursor: pointer; white-space: nowrap; }
+.switch input { width: auto; margin: 0; }
+.switch:has(input:disabled) { opacity: .45; cursor: default; }
+
+/* Datei wählen (Wiederherstellen) */
+.file-btn {
+  display: inline-block; margin: 0; padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); color: var(--text); cursor: pointer;
+}
+.file-btn:hover { background: var(--hover); }
+.file-btn input { display: none; }

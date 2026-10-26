@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import config
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS photo (
@@ -40,7 +40,10 @@ CREATE TABLE IF NOT EXISTS photo (
     geocoded      INTEGER NOT NULL DEFAULT 0,
     web_url       TEXT,
     etag          TEXT,
-    deleted       INTEGER NOT NULL DEFAULT 0
+    deleted       INTEGER NOT NULL DEFAULT 0,
+    favorite      INTEGER NOT NULL DEFAULT 0,
+    dup_group     INTEGER,               -- gleiche Datei mehrfach vorhanden (siehe duplicates.py)
+    dup_rank      INTEGER                -- 0 = Hauptexemplar, 1.. = Kopien
 );
 CREATE INDEX IF NOT EXISTS ix_photo_taken   ON photo(taken_at);
 CREATE INDEX IF NOT EXISTS ix_photo_ym      ON photo(year, month);
@@ -49,6 +52,34 @@ CREATE INDEX IF NOT EXISTS ix_photo_parent  ON photo(parent_id);
 CREATE INDEX IF NOT EXISTS ix_photo_path    ON photo(parent_path);
 CREATE INDEX IF NOT EXISTS ix_photo_local   ON photo(local_path);
 CREATE INDEX IF NOT EXISTS ix_photo_meta    ON photo(source, meta_level);
+CREATE INDEX IF NOT EXISTS ix_photo_dup     ON photo(dup_group, dup_rank);
+CREATE INDEX IF NOT EXISTS ix_photo_fav     ON photo(favorite) WHERE favorite = 1;
+
+-- Von Hand gesetztes Aufnahmedatum. Gilt nur im Katalog, die Datei bleibt unverändert.
+-- auto_* hält das automatisch ermittelte Datum für "zurücksetzen" fest.
+CREATE TABLE IF NOT EXISTS date_override (
+    photo_id          TEXT PRIMARY KEY REFERENCES photo(id) ON DELETE CASCADE,
+    taken_at          TEXT NOT NULL,
+    precision         TEXT NOT NULL DEFAULT 'time',  -- 'year' | 'month' | 'day' | 'time'
+    auto_taken_at     TEXT,
+    auto_date_source  TEXT
+);
+
+-- Einlesen, Nachladen und Online-Abgleich schreiben das automatische Datum.
+-- Der Trigger merkt es sich und stellt danach das manuelle Datum wieder her.
+CREATE TRIGGER IF NOT EXISTS tr_photo_keep_manual_date
+AFTER UPDATE OF taken_at, date_source ON photo
+WHEN NEW.date_source IS NOT 'manual' AND EXISTS (SELECT 1 FROM date_override WHERE photo_id = NEW.id)
+BEGIN
+    UPDATE date_override SET auto_taken_at = NEW.taken_at, auto_date_source = NEW.date_source
+    WHERE photo_id = NEW.id;
+    UPDATE photo SET
+        taken_at = (SELECT taken_at FROM date_override WHERE photo_id = NEW.id),
+        date_source = 'manual',
+        year = CAST(substr((SELECT taken_at FROM date_override WHERE photo_id = NEW.id), 1, 4) AS INTEGER),
+        month = CAST(substr((SELECT taken_at FROM date_override WHERE photo_id = NEW.id), 6, 2) AS INTEGER)
+    WHERE id = NEW.id;
+END;
 
 CREATE TABLE IF NOT EXISTS folder (
     id          TEXT PRIMARY KEY,
@@ -105,14 +136,20 @@ MIGRATIONS = {
         "ALTER TABLE photo ADD COLUMN scope_id TEXT",
         "ALTER TABLE scope ADD COLUMN kind TEXT NOT NULL DEFAULT 'graph'",
     ],
+    3: [
+        "ALTER TABLE photo ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE photo ADD COLUMN dup_group INTEGER",
+        "ALTER TABLE photo ADD COLUMN dup_rank INTEGER",
+    ],
 }
 
 
-def init(conn: sqlite3.Connection) -> None:
+def init(conn: sqlite3.Connection) -> bool:
+    """Legt das Schema an bzw. migriert es. True, wenn sich etwas geändert hat."""
     version = conn.execute("PRAGMA user_version").fetchone()[0]
     has_tables = conn.execute("SELECT 1 FROM sqlite_master WHERE name = 'photo'").fetchone()
     if has_tables and version == SCHEMA_VERSION:
-        return  # aktuell – nur lesen, damit der Start nie auf eine Schreibsperre wartet
+        return False  # aktuell – nur lesen, damit der Start nie auf eine Schreibsperre wartet
     if has_tables:
         for target in sorted(MIGRATIONS):
             if version < target:
@@ -121,3 +158,4 @@ def init(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA)
     conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
     conn.commit()
+    return True

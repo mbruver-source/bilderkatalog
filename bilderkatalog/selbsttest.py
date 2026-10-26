@@ -67,10 +67,12 @@ def fuehre_selbsttest_aus(protokoll_pfad: str | None = None) -> int:
         schritt("Ortsauflösung (Ortsdatensatz gebündelt)", lambda: _orte(kontext))
         schritt("Vorschaubild", lambda: _vorschau(kontext))
         schritt("ZIP-Export", lambda: _zip(kontext, arbeitsordner / "export"))
+        schritt("Duplikate, Favoriten, Datum, Sicherung", lambda: _eigene_eintraege(kontext))
         schritt("Weboberfläche und API", _server)
         schritt("Lizenzhinweise", _lizenzen)
         if sys.platform == "win32":
             schritt("Windows-Eigenschaftsspeicher (pywin32)", _pywin32)
+            schritt("Windows-Vorschau (Videos, Nur-online-Dateien)", lambda: _windows_vorschau(kontext))
             schritt("Programmfenster-Bibliothek (pywebview/WebView2)", _webview)
     finally:
         wachhund.cancel()
@@ -126,6 +128,36 @@ def _vorschau(kontext: dict) -> str:
     data = local_source.thumbnail_bytes(kontext["pfad"], "medium")
     assert data and data[:2] == b"\xff\xd8", "keine JPEG-Vorschau"
     return f"{len(data)} Bytes"
+
+
+def _eigene_eintraege(kontext: dict) -> str:
+    import shutil as sh
+
+    from . import albums, dates, duplicates, local_source, sicherung
+
+    conn, pfad = kontext["conn"], Path(kontext["pfad"])
+    kopie = pfad.with_name("IMG_0001 (1).jpg")
+    sh.copy2(pfad, kopie)
+    local_source.scan_scope(conn, str(pfad.parent.parent.resolve()), workers=1)
+    assert duplicates.refresh(conn) == {"groups": 1, "copies": 1}
+    albums.set_favorite(conn, [kontext["id"]], True)
+    dates.set_date(conn, [kontext["id"]], "07.1998")
+    assert conn.execute("SELECT year FROM photo WHERE id = ?", (kontext["id"],)).fetchone()[0] == 1998
+    daten = sicherung.collect(conn)
+    assert sicherung.counts(daten) == {"albums": 0, "favorites": 1, "dates": 1}, sicherung.counts(daten)
+    dates.reset(conn, [kontext["id"]])
+    kopie.unlink()
+    local_source.scan_scope(conn, str(pfad.parent.parent.resolve()), workers=1)
+    duplicates.refresh(conn)
+    return "1 Kopie erkannt, Sicherung vollständig"
+
+
+def _windows_vorschau(kontext: dict) -> str:
+    """Nur Hinweis: Auf Servern ohne Vorschau-Dienst (CI) liefert Windows evtl. nichts."""
+    from . import winfiles
+
+    data = winfiles.shell_thumbnail(Path(kontext["pfad"]), 160, timeout=10)
+    return f"{len(data)} Bytes" if data else "nicht verfügbar (ohne Bedeutung auf Servern)"
 
 
 def _zip(kontext: dict, ziel: Path) -> str:

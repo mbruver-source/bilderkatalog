@@ -72,6 +72,17 @@ def remove_photos(conn: sqlite3.Connection, album_id: int, photo_ids: Iterable[s
     return conn.total_changes - before
 
 
+def set_favorite(conn: sqlite3.Connection, photo_ids: Iterable[str], value: bool) -> int:
+    """Favoriten: ein Stern pro Bild, nur im Katalog gespeichert."""
+    before = conn.total_changes
+    conn.executemany(
+        "UPDATE photo SET favorite = ? WHERE id = ? AND favorite <> ?",
+        [(int(value), pid, int(value)) for pid in photo_ids],
+    )
+    conn.commit()
+    return conn.total_changes - before
+
+
 def _clean_name(name: str) -> str:
     name = (name or "").strip()
     if not name:

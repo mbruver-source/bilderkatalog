@@ -196,7 +196,11 @@ def test_enrich_one_via_api(tmp_path, library, monkeypatch):
 
     view = client.get("/api/photos", params={"folder": "/Fotos/Urlaub"}).json()
     assert view["partial"] == 2
-    assert client.get(f"/api/thumb/{photo_id}").status_code == 404  # nur online → keine Vorschau
+    # nur online → nie aus der Datei (würde herunterladen), sondern über die Windows-Vorschau
+    shell_calls = []
+    monkeypatch.setattr(winfiles, "shell_thumbnail", lambda path, px: shell_calls.append(px))
+    assert client.get(f"/api/thumb/{photo_id}").status_code == 404
+    assert shell_calls == [320]
     updated = client.post(f"/api/photos/{photo_id}/enrich", headers=hdr).json()
     assert updated["meta_level"] == "full" and updated["camera_model"] == "Cam 1"
     assert client.get(f"/api/thumb/{photo_id}").status_code == 200
