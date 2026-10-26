@@ -148,8 +148,17 @@
       Deine Daten liegen in <code id="version-daten"></code></p>
     <p><button id="update-btn">Nach Updates suchen</button></p>
     <p id="update-msg"></p>
-    <p><button class="link" id="releases-btn">Alle Versionen auf GitHub ansehen</button></p>
+    <p><button class="link" id="releases-btn">Alle Versionen auf GitHub ansehen</button><br>
+      <button class="link" id="licenses-btn">Lizenzen der mitgelieferten Software</button></p>
+    <p class="muted">Ortsdaten © <a href="https://www.geonames.org" target="_blank" rel="noopener">GeoNames.org</a>, CC BY 4.0</p>
     <div class="actions"><button id="version-close" class="primary">Schließen</button></div>
+  </dialog>
+
+  <!-- Lizenzen -->
+  <dialog id="licenses-dlg" class="wide">
+    <h3>Lizenzen der mitgelieferten Software</h3>
+    <pre id="licenses-text" class="licenses">Lade …</pre>
+    <div class="actions"><button id="licenses-close" class="primary">Schließen</button></div>
   </dialog>
 
   <!-- Details nachladen -->

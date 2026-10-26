@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Benutzerhandbuch
+    url: https://github.com/mbruver-source/bilderkatalog/blob/main/docs/HANDBUCH.md
+    about: Alle Funktionen Schritt für Schritt und häufige Fragen.
+  - name: Sicherheitslücke melden
+    url: https://github.com/mbruver-source/bilderkatalog/security/policy
+    about: Bitte nicht als öffentliches Issue – hier steht, wie du eine Lücke vertraulich meldest.

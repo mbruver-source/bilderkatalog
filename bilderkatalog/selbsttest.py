@@ -68,6 +68,7 @@ def fuehre_selbsttest_aus(protokoll_pfad: str | None = None) -> int:
         schritt("Vorschaubild", lambda: _vorschau(kontext))
         schritt("ZIP-Export", lambda: _zip(kontext, arbeitsordner / "export"))
         schritt("Weboberfläche und API", _server)
+        schritt("Lizenzhinweise", _lizenzen)
         if sys.platform == "win32":
             schritt("Windows-Eigenschaftsspeicher (pywin32)", _pywin32)
             schritt("Programmfenster-Bibliothek (pywebview/WebView2)", _webview)
@@ -165,6 +166,19 @@ def _server() -> str:
     finally:
         server.should_exit = True
         thread.join(timeout=10)
+
+
+def _lizenzen() -> str:
+    from . import lizenzen
+
+    text = lizenzen.gebuendelt_oder_erzeugen()
+    for pflicht in ("GeoNames", "GNU LESSER GENERAL PUBLIC LICENSE", "reverse_geocoder", "pywebview", "numpy"):
+        assert pflicht in text, f"{pflicht} fehlt in den Lizenzhinweisen"
+    if getattr(sys, "frozen", False):
+        import reverse_geocoder
+
+        assert reverse_geocoder.__file__.endswith(".py"), "reverse_geocoder nicht als austauschbarer Quellcode gebündelt"
+    return f"{len(text) // 1024} KB"
 
 
 def _pywin32() -> str:

@@ -160,7 +160,9 @@ Die Tests verwenden ausschließlich erzeugte Testbilder und erfundene Graph-Antw
 
 ## Lizenz
 
-[MIT](LICENSE)
+[MIT](LICENSE). Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen (überwiegend MIT/BSD, `reverse_geocoder` unter LGPL 2.1). Beim Build entsteht daraus automatisch `THIRD_PARTY_LICENSES.txt`; der Installer legt sie in den Programmordner, im Programm steht sie unter *Version → Lizenzen der mitgelieferten Software*. Erzeugen von Hand: `python -m bilderkatalog.lizenzen`.
+
+Ortsdaten © [GeoNames.org](https://www.geonames.org), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
 ## Marken
 

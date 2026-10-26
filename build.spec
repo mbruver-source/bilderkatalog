@@ -34,9 +34,20 @@ if _conda_bin.is_dir():
     for muster in ("sqlite3.dll", "ffi*.dll", "libffi*.dll"):
         binaries += [(str(dll), ".") for dll in _conda_bin.glob(muster)]
 
+# Lizenzhinweise der mitgelieferten Fremdsoftware, bei jedem Build neu aus den
+# tatsächlich installierten Paketen erzeugt (siehe bilderkatalog/lizenzen.py)
+sys.path.insert(0, SPECPATH)
+from bilderkatalog import lizenzen  # noqa: E402
+
+_lizenzdatei = Path(SPECPATH) / "build" / lizenzen.DATEINAME
+_lizenzdatei.parent.mkdir(exist_ok=True)
+_lizenzdatei.write_text(lizenzen.text_erzeugen(), encoding="utf-8")
+
 datas = [
     # Weboberfläche und Programmsymbol (bilderkatalog/static/*)
     ("bilderkatalog/static", "bilderkatalog/static"),
+    (str(_lizenzdatei), "bilderkatalog/static"),
+    ("LICENSE", "."),
 ]
 # Ortsdatensatz (GeoNames, rg_cities1000.csv) für die Offline-Ortsauflösung
 datas += collect_data_files("reverse_geocoder")
@@ -68,6 +79,8 @@ a = Analysis(
     # Nicht benötigte Schwergewichte, die über optionale Importe hereinkämen
     excludes=["tkinter", "matplotlib", "IPython", "pytest"],
     noarchive=False,
+    # LGPL: reverse_geocoder als austauschbarer Quellcode im Programmordner statt im Archiv
+    module_collection_mode={"reverse_geocoder": "py"},
 )
 pyz = PYZ(a.pure, a.zipped_data)
 

@@ -1,0 +1,56 @@
+name: Idee / Wunsch
+description: Vorschlag für eine neue Funktion oder eine Verbesserung.
+title: "[Wunsch] "
+labels: ["wunsch"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke für deine Idee! Beschreibe am besten zuerst, **welches Problem** du lösen möchtest –
+        der passende Lösungsweg lässt sich dann gemeinsam finden.
+
+        **Bitte keine privaten Fotos** in Text oder Bildern.
+  - type: dropdown
+    id: bereich
+    attributes:
+      label: Bereich
+      options:
+        - Ordner wählen / Einlesen
+        - Bildraster / Großansicht
+        - Filter und Seitenleiste
+        - Nur-online-Bilder
+        - Alben
+        - Ereignisse
+        - Auswahl / ZIP-Export
+        - Online-Zugang (Microsoft)
+        - Installation / Update
+        - Sonstiges
+    validations:
+      required: true
+  - type: textarea
+    id: anlass
+    attributes:
+      label: Worum geht es?
+      description: Was ist heute umständlich oder fehlt dir? In welcher Situation?
+    validations:
+      required: true
+  - type: textarea
+    id: vorschlag
+    attributes:
+      label: Dein Vorschlag
+      description: Wie könnte es aussehen? Skizzen oder Beispiele helfen.
+  - type: dropdown
+    id: wichtigkeit
+    attributes:
+      label: Wie wichtig ist das für dich?
+      options:
+        - Wäre schön
+        - Spart mir spürbar Arbeit
+        - Ohne das kann ich das Programm kaum nutzen
+  - type: checkboxes
+    id: datenschutz
+    attributes:
+      label: Datenschutz
+      options:
+        - label: Mein Vorschlag und angehängte Bilder enthalten keine privaten Fotos und keine persönlichen Daten.
+          required: true

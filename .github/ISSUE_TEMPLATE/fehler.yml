@@ -1,0 +1,87 @@
+name: Fehler melden
+description: Etwas funktioniert nicht wie erwartet.
+title: "[Fehler] "
+labels: ["fehler"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Danke, dass du dir die Zeit nimmst! Bitte vorher kurz ins
+        [Benutzerhandbuch](https://github.com/mbruver-source/bilderkatalog/blob/main/docs/HANDBUCH.md)
+        schauen (Kapitel „Fragen und Probleme“) – vielleicht ist das Verhalten dort schon erklärt.
+
+        **Bitte keine privaten Fotos** und keine persönlichen Ordner- oder Dateinamen in Text oder Screenshots.
+  - type: input
+    id: version
+    attributes:
+      label: Programmversion
+      description: Steht oben rechts im Programm (z. B. v1.0.0).
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: bereich
+    attributes:
+      label: Bereich
+      options:
+        - Ordner wählen / Einlesen
+        - Bildraster / Großansicht
+        - Filter und Seitenleiste (Zeitleiste, Orte, Ordner, Kameras)
+        - Nur-online-Bilder / Vorschau nachladen
+        - Alben
+        - Ereignisse
+        - Auswahl / ZIP-Export
+        - Online-Zugang (Microsoft)
+        - Installation / Update
+        - Sonstiges
+    validations:
+      required: true
+  - type: input
+    id: umfang
+    attributes:
+      label: Wie viele Bilder ungefähr?
+      description: Hilft bei Fehlern, die nur bei großen Sammlungen auftreten.
+      placeholder: "z. B. 20.000, davon die Hälfte nur online"
+  - type: textarea
+    id: schritte
+    attributes:
+      label: Was hast du gemacht?
+      description: Schritt für Schritt, so dass es jemand nachmachen kann.
+      placeholder: |
+        1. „Ordner wählen“ geöffnet
+        2. OneDrive hinzugefügt, „Aktualisieren“ geklickt
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: ergebnis
+    attributes:
+      label: Was ist passiert?
+    validations:
+      required: true
+  - type: textarea
+    id: erwartet
+    attributes:
+      label: Was hättest du erwartet?
+    validations:
+      required: true
+  - type: textarea
+    id: meldung
+    attributes:
+      label: Fehlermeldung und Protokoll (falls vorhanden)
+      description: |
+        Text der Meldung, am besten kopiert statt abgetippt. Hilfreich sind auch die letzten Zeilen aus
+        `%LOCALAPPDATA%\bilderkatalog\bilderkatalog.log` – bitte persönliche Pfade vorher unkenntlich machen.
+      render: text
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Bilder einfach hier hineinziehen. Am besten mit den Demo-Bildern oder geschwärzt.
+  - type: checkboxes
+    id: datenschutz
+    attributes:
+      label: Datenschutz
+      options:
+        - label: Meine Meldung und Screenshots enthalten keine privaten Fotos und keine persönlichen Daten.
+          required: true

@@ -79,6 +79,9 @@ Type: filesandordirs; Name: "{app}\_internal"
 
 [Files]
 Source: "dist\{#MyAppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Lizenzen gut sichtbar im Programmordner (eigene MIT-Lizenz und Fremdsoftware)
+Source: "LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignoreversion
+Source: "build\THIRD_PARTY_LICENSES.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

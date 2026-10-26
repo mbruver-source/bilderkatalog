@@ -171,6 +171,12 @@ def create_app(state: State | None = None) -> FastAPI:
     def update_check():
         return updates.pruefen()
 
+    @app.get("/api/licenses")
+    def licenses():
+        from . import lizenzen
+
+        return Response(lizenzen.gebuendelt_oder_erzeugen(), media_type="text/plain; charset=utf-8")
+
     @app.post("/api/open-releases")
     def open_releases():
         """Release-Seite im Standardbrowser öffnen (aus dem Programmfenster heraus)."""

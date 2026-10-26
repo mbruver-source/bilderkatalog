@@ -169,6 +169,7 @@ dialog {
 }
 dialog.wide { width: min(640px, calc(100% - 32px)); }
 dialog::backdrop { background: #0007; }
+.licenses { max-height: 60vh; overflow: auto; white-space: pre-wrap; font-size: 12px; background: var(--bg); padding: 12px; border-radius: 8px; }
 .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .scope-list { list-style: none; padding: 0; margin: 0 0 12px; }
 .scope-list li { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--line); }

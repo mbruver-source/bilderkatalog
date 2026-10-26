@@ -184,6 +184,10 @@ Dort liegen der Katalog (`katalog.db` mit Alben und Angaben zu den Bildern), die
 - Das Programm ist nur auf deinem eigenen Rechner erreichbar, nicht im Netzwerk.
 - **Zurücksetzen:** Programm schließen und den Ordner oben löschen. Beim nächsten Start beginnt der Katalog leer, deine Bilder sind davon nicht betroffen.
 
+### Lizenzen
+
+Der Bilderkatalog ist freie Software unter der MIT-Lizenz. Er bringt Bibliotheken anderer Projekte mit, deren Lizenzen im Programm unter **Versionsnummer → Lizenzen der mitgelieferten Software** stehen und als `THIRD_PARTY_LICENSES.txt` im Programmordner liegen. Die Ortsdaten stammen von [GeoNames.org](https://www.geonames.org) (Lizenz CC BY 4.0).
+
 ## 11. Optional: Online-Zugang über Microsoft
 
 Für den normalen Gebrauch nicht nötig. Der Online-Zugang über die Microsoft-Graph-Schnittstelle hat nur einen Vorteil: Ort, Kamera und Vorschaubilder auch von Nur-online-Bildern kommen **ohne Download**. Dafür brauchst du eine eigene, kostenlose App-Registrierung bei Microsoft. Je nach Konto verlangt Microsoft dafür ein Azure-Konto.

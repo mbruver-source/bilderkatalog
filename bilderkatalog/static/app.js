@@ -102,6 +102,15 @@ $("#version-btn").addEventListener("click", () => {
   $("#version-dlg").showModal();
 });
 $("#version-close").addEventListener("click", () => $("#version-dlg").close());
+$("#licenses-btn").addEventListener("click", async () => {
+  $("#licenses-dlg").showModal();
+  try {
+    $("#licenses-text").textContent = await (await fetch("/api/licenses")).text();
+  } catch (err) {
+    $("#licenses-text").textContent = err.message;
+  }
+});
+$("#licenses-close").addEventListener("click", () => $("#licenses-dlg").close());
 $("#releases-btn").addEventListener("click", () => api("/api/open-releases", { method: "POST" }));
 $("#update-btn").addEventListener("click", async () => {
   const msg = $("#update-msg");
