@@ -47,6 +47,8 @@ _lizenzdatei.write_text(lizenzen.text_erzeugen(), encoding="utf-8")
 datas = [
     # Weboberfläche und Programmsymbol (bilderkatalog/static/*)
     ("bilderkatalog/static", "bilderkatalog/static"),
+    # Deutsche Ortsnamen (erzeugt mit tools/ortsnamen.py)
+    ("bilderkatalog/data", "bilderkatalog/data"),
     (str(_lizenzdatei), "bilderkatalog/static"),
     ("LICENSE", "."),
 ]

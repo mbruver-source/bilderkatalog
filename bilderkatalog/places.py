@@ -1,39 +1,25 @@
 """Ort von Hand setzen, ändern oder entfernen – nur im Katalog, die Dateien bleiben unverändert.
 
 Orte lassen sich suchen (bereits im Katalog vorhandene Orte und das GeoNames-
-Ortsverzeichnis, offline) oder als Koordinaten eingeben, z. B. aus einer Karten-App.
-Ein Trigger in db.py hält den Ort über erneutes Einlesen und Nachladen hinweg fest.
+Ortsverzeichnis mit deutschen Namen, offline) oder als Koordinaten eingeben, z. B. aus
+einer Karten-App. Ein Trigger in db.py hält den Ort über erneutes Einlesen hinweg fest.
 """
 
 from __future__ import annotations
 
-import csv
-import os
 import re
 import sqlite3
 import threading
 import unicodedata
 from collections.abc import Iterable
 
-# Deutsche Namen bekannter Orte, die GeoNames englisch führt
-_ALIASES = {
-    "munchen": "munich", "wien": "vienna", "rom": "rome", "lissabon": "lisbon",
-    "prag": "prague", "mailand": "milan", "venedig": "venice", "florenz": "florence", "neapel": "naples",
-    "warschau": "warsaw", "moskau": "moscow", "brussel": "brussels", "kopenhagen": "copenhagen",
-    "athen": "athens", "genf": "geneva", "den haag": "the hague", "nizza": "nice", "krakau": "krakow",
-    "belgrad": "belgrade", "bukarest": "bucharest", "sankt petersburg": "saint petersburg",
-    "peking": "beijing", "kairo": "cairo", "turin": "turin", "sevilla": "seville", "breslau": "wroclaw",
-    "danzig": "gdansk", "posen": "poznan", "pressburg": "bratislava", "lowen": "leuven", "luttich": "liege", "antwerpen": "antwerp", "bozen": "bolzano", "meran": "merano", "triest": "trieste",
-    "korfu": "corfu", "kreta": "heraklion", "nurnberg": "nuremberg", "hannover": "hanover",
-}
-# Bei gleich gutem Treffer: Europa vor dem Rest der Welt (der Datensatz kennt keine Einwohnerzahlen)
-_EUROPE = set("AD AL AT BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GI GR HR HU IE IM IS IT LI LT LU LV MC MD "
-              "ME MK MT NL NO PL PT RO RS RU SE SI SK SM UA VA XK".split())
+from . import ortsnamen
+
 _COORDS = re.compile(r"\s*(-?\d{1,3}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)\s*")
 _COORDS_COMMA = re.compile(r"\s*(-?\d{1,3}(?:,\d+)?)\s*[;\s]\s*(-?\d{1,3}(?:,\d+)?)\s*")
 
-_cities: list[tuple[str, float, float, str, str, str]] | None = None
-_cities_lock = threading.Lock()
+_index: list[tuple[str, str, ortsnamen.Ort]] | None = None
+_index_lock = threading.Lock()
 
 
 def _norm(text: str) -> str:
@@ -44,18 +30,14 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text).strip()
 
 
-def _city_table() -> list[tuple[str, float, float, str, str, str]]:
-    """GeoNames-Orte (> 1000 Einwohner) aus dem Datensatz von reverse_geocoder, einmalig geladen."""
-    global _cities
-    with _cities_lock:
-        if _cities is None:
-            import reverse_geocoder
-
-            path = os.path.join(os.path.dirname(reverse_geocoder.__file__), "rg_cities1000.csv")
-            with open(path, encoding="utf-8", newline="") as fh:
-                _cities = [(_norm(r["name"]), float(r["lat"]), float(r["lon"]), r["name"], r["admin1"], r["cc"])
-                           for r in csv.DictReader(fh)]
-        return _cities
+def _suchindex() -> list[tuple[str, str, ortsnamen.Ort]]:
+    """(deutscher Name, ASCII-Name, Ort) in Vergleichsform, einmalig aufgebaut.
+    Gesucht wird in beiden, damit "Lissabon" und "Lisbon" gleichermaßen funktionieren."""
+    global _index
+    with _index_lock:
+        if _index is None:
+            _index = [(_norm(o.name), _norm(o.name_ascii), o) for o in ortsnamen.orte()]
+        return _index
 
 
 def parse_coords(text: str) -> tuple[float, float] | None:
@@ -80,8 +62,6 @@ def search(conn: sqlite3.Connection, text: str, limit: int = 12) -> list[dict]:
     query = _norm(text)
     if len(query) < 2:
         return []
-    # Eingabe und passende deutsche Namen ("Lissa" → Lisbon); "Hannover" gibt es auch unter deutschem Namen
-    queries = {query} | {_norm(v) for k, v in _ALIASES.items() if len(query) >= 3 and k.startswith(query)}
 
     # 1. Orte, die schon im Katalog vorkommen (mit Anzahl)
     known = []
@@ -90,32 +70,29 @@ def search(conn: sqlite3.Connection, text: str, limit: int = 12) -> list[dict]:
         "WHERE deleted = 0 AND city IS NOT NULL AND lat IS NOT NULL "
         "GROUP BY city, region, country_code ORDER BY n DESC"
     ):
-        name = _norm(row["city"])
-        if any(name.startswith(q) or f" {q}" in f" {name}" for q in queries):
+        if _rank(_norm(row["city"]), query) < 3:
             known.append({"city": row["city"], "region": row["region"], "country_code": row["country_code"],
                           "lat": round(row["lat"], 6), "lon": round(row["lon"], 6), "n": row["n"],
                           "source": "catalog"})
         if len(known) >= 5:
             break
 
-    # 2. Ortsverzeichnis; Länder, die im Katalog häufig vorkommen, zuerst
-    countries = {r[0]: r[1] for r in conn.execute(
-        "SELECT country_code, COUNT(*) FROM photo WHERE country_code IS NOT NULL GROUP BY country_code")}
+    # 2. Ortsverzeichnis: beste Übereinstimmung, dann größere Orte zuerst
     hits = []
-    for name, lat, lon, label, admin1, cc in _city_table():
-        rank = min(_rank(name, q) for q in queries)
+    for name_de, name_ascii, ort in _suchindex():
+        rank = min(_rank(name_de, query), _rank(name_ascii, query))
         if rank < 3:
-            hits.append((rank, -countries.get(cc, 0), cc not in _EUROPE, len(name), label, admin1, cc, lat, lon))
-    hits.sort()
-    seen = {(k["city"], k["country_code"]) for k in known}
+            hits.append((rank, -ort.einwohner, len(name_de), ort))
+    hits.sort(key=lambda h: h[:3])
+    seen = {(k["city"], k["region"], k["country_code"]) for k in known}
     result = list(known)
-    for *_, label, admin1, cc, lat, lon in hits:
+    for *_, ort in hits:
         if len(result) >= limit:
             break
-        if (label, cc) in seen and any(k["region"] == admin1 for k in known if k["city"] == label):
+        if (ort.name, ort.region, ort.cc) in seen:
             continue
-        result.append({"city": label, "region": admin1 or None, "country_code": cc,
-                       "lat": lat, "lon": lon, "source": "geonames"})
+        result.append({"city": ort.name, "region": ort.region, "country_code": ort.cc,
+                       "lat": ort.lat, "lon": ort.lon, "source": "geonames"})
     return result
 
 
@@ -131,7 +108,7 @@ def _rank(name: str, query: str) -> int:
 def _reverse(lat: float, lon: float) -> dict:
     import reverse_geocoder
 
-    res = reverse_geocoder.search([(lat, lon)], mode=1, verbose=False)[0]
+    res = ortsnamen.eindeutschen(reverse_geocoder.search([(lat, lon)], mode=1, verbose=False)[0])
     return {"city": res.get("name") or None, "region": res.get("admin1") or None, "country_code": res.get("cc") or None}
 
 
@@ -149,6 +126,9 @@ def set_place(conn: sqlite3.Connection, photo_ids: Iterable[str], place: dict | 
         values = {"lat": lat, "lon": lon}
         if place.get("city") or place.get("country_code"):
             values.update({k: place.get(k) or None for k in ("city", "region", "country_code")})
+            # z. B. aus älteren Sicherungen mit englischen Namen ("Munich")
+            values["city"], values["region"] = ortsnamen.ort_eindeutschen(
+                values["city"], values["region"], values["country_code"], lat, lon)
         else:
             values.update(_reverse(lat, lon))
     count = 0
@@ -190,6 +170,22 @@ def reset(conn: sqlite3.Connection, photo_ids: Iterable[str]) -> int:
             (row["auto_lat"], row["auto_lon"], photo_id),
         )
         count += 1
+    conn.commit()
+    return count
+
+
+def eindeutschen_katalog(conn: sqlite3.Connection) -> int:
+    """Einmalige Umstellung älterer Kataloge auf deutsche Ortsnamen (Schema 5).
+
+    Von Hand gesetzte Orte werden direkt umbenannt; alle übrigen Bilder mit GPS werden
+    zum erneuten Verorten markiert (geocode_pending). Gibt deren Anzahl zurück."""
+    for row in conn.execute("SELECT * FROM place_override WHERE city IS NOT NULL").fetchall():
+        city, region = ortsnamen.ort_eindeutschen(row["city"], row["region"], row["country_code"], row["lat"], row["lon"])
+        conn.execute("UPDATE place_override SET city = ?, region = ? WHERE photo_id = ?", (city, region, row["photo_id"]))
+        conn.execute("UPDATE photo SET city = ?, region = ? WHERE id = ?", (city, region, row["photo_id"]))
+    count = conn.execute(
+        "UPDATE photo SET geocoded = 0 WHERE lat IS NOT NULL AND id NOT IN (SELECT photo_id FROM place_override)"
+    ).rowcount
     conn.commit()
     return count
 

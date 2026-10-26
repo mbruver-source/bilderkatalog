@@ -127,13 +127,20 @@ def test_replaced_file_keeps_favorite_date_and_album(conn, library):
 
 # -- Ort von Hand -------------------------------------------------------------------
 
+# wie in Katalogen und Sicherungen vor Version 5 (englische Namen)
 LISSABON = {"lat": 38.71667, "lon": -9.13333, "city": "Lisbon", "region": "Lisbon", "country_code": "PT"}
 
 
 def test_search_places_finds_german_names_and_coordinates(conn):
     assert places.search(conn, "Lissabon")[0]["country_code"] == "PT"
-    assert places.search(conn, "Köln")[0]["city"] == "Koeln"
-    assert places.search(conn, "rosbach vor der höhe")[0]["city"] == "Rosbach vor der Hohe"
+    assert places.search(conn, "Köln")[0]["city"] == "Köln"
+    assert places.search(conn, "Koeln")[0]["city"] == "Köln"
+    assert places.search(conn, "Munich")[0]["city"] == "München"  # englischer Name findet auch
+    assert places.search(conn, "rosbach vor der hohe")[0]["city"] == "Rosbach vor der Höhe"
+    genf = places.search(conn, "Genf")[0]  # fehlt im Datensatz von reverse_geocoder, ist nachgetragen
+    assert (genf["city"], genf["country_code"]) == ("Genf", "CH")
+    paris = places.search(conn, "Paris")[0]
+    assert (paris["city"], paris["region"], paris["country_code"]) == ("Paris", "Île-de-France", "FR")
     hit = places.search(conn, "48.8566, 2.3522")
     assert hit[0]["city"] == "Paris" and hit[0]["source"] == "coords"
     assert places.parse_coords("48,8566 2,3522") == (48.8566, 2.3522)
@@ -150,7 +157,7 @@ def test_manual_place_survives_rescan_geocoding_and_enrich(conn, library, monkey
     scan(conn, library)
     geocode.geocode_pending(conn)
     photo = rows(conn)["IMG_0002.jpg"]
-    assert (photo["city"], photo["country_code"], photo["lat"]) == ("Lisbon", "PT", 38.71667)
+    assert (photo["city"], photo["country_code"], photo["lat"]) == ("Lissabon", "PT", 38.71667)
     assert queries.list_photos(conn, Filter(place_manual=True))["total"] == 1
     assert queries.list_photos(conn, Filter(country="PT"))["total"] == 1
 
@@ -222,7 +229,8 @@ def test_backup_roundtrip_on_other_pc(tmp_path, library):
     scan(second, library)
     result = sicherung.restore(second, data)
     assert result == {"albums_new": 1, "assigned": 2, "favorites": 1, "dates": 1, "places": 1, "not_found": 0}
-    assert (rows(second)["scan_001.jpg"]["city"], rows(second)["scan_001.jpg"]["country_code"]) == ("Lisbon", "PT")
+    # ältere Sicherungen mit englischen Namen werden beim Einspielen eingedeutscht
+    assert (rows(second)["scan_001.jpg"]["city"], rows(second)["scan_001.jpg"]["country_code"]) == ("Lissabon", "PT")
     photos = rows(second)
     assert photos["IMG_0002.jpg"]["favorite"] == 1
     assert photos["scan_001.jpg"]["taken_at"] == "1998-07-14T12:00:00"
@@ -284,3 +292,37 @@ def test_api_favorites_dates_backup(tmp_path, library):
     assert client.post("/api/places", json={"ids": [scan_id], "place": LISSABON}, headers=hdr).json() == {"changed": 1}
     assert client.get(f"/api/photos/{scan_id}").json()["place_manual"] is True
     assert client.post("/api/places/reset", json={"ids": [scan_id]}, headers=hdr).json() == {"changed": 1}
+
+
+def test_old_catalog_switches_to_german_place_names(tmp_path, library):
+    """Kataloge vor Schema 5 haben englische Ortsnamen; der Start stellt sie einmalig um."""
+    import time
+
+    from bilderkatalog import db
+    from bilderkatalog.api import State
+
+    path = tmp_path / "alt.db"
+    conn = db.connect(path)
+    db.init(conn)
+    scan(conn, library)
+    ids = {r["name"]: r["id"] for r in conn.execute("SELECT id, name FROM photo")}
+    conn.execute("UPDATE photo SET lat = 48.13743, lon = 11.57549, city = 'Munich', region = 'Bavaria', "
+                 "country_code = 'DE', geocoded = 1 WHERE id = ?", (ids["IMG_0001.jpg"],))
+    places.set_place(conn, [ids["scan_001.jpg"]], LISSABON)
+    conn.execute("UPDATE place_override SET city = 'Lisbon', region = 'Lisbon'")  # wie vor der Umstellung
+    conn.execute("UPDATE photo SET city = 'Lisbon', region = 'Lisbon' WHERE id = ?", (ids["scan_001.jpg"],))
+    conn.execute("PRAGMA user_version = 4")
+    conn.commit()
+    conn.close()
+
+    state = State(path)
+    for _ in range(100):
+        if not state.sync_job.running:
+            break
+        time.sleep(0.1)
+    conn = state.connect()
+    photos = rows(conn)
+    assert (photos["IMG_0001.jpg"]["city"], photos["IMG_0001.jpg"]["region"]) == ("München", "Bayern")
+    assert photos["scan_001.jpg"]["city"] == "Lissabon"
+    assert conn.execute("SELECT city FROM place_override").fetchone()[0] == "Lissabon"
+    conn.close()

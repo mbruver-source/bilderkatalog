@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import config
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS photo (
@@ -175,6 +175,7 @@ MIGRATIONS = {
         "ALTER TABLE photo ADD COLUMN dup_rank INTEGER",
     ],
     4: [],  # nur neue Tabelle und Trigger (place_override), legt SCHEMA an
+    5: [],  # deutsche Ortsnamen – Umstellung der Daten in places.eindeutschen_katalog
 }
 
 

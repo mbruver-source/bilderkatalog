@@ -48,7 +48,7 @@ Bilder, die schon lokal vorhanden sind, werden direkt vollständig gelesen.
 ### Weitere Details
 
 - Fehlt ein EXIF-Datum, wird es aus dem Dateinamen gelesen (z. B. `IMG-20190312-WA0001.jpg`) und erst danach aus der Änderungszeit der Datei. Die Quelle wird jeweils angezeigt.
-- GPS-Koordinaten werden **offline** in Stadt, Region und Land umgewandelt (`reverse_geocoder`).
+- GPS-Koordinaten werden **offline** in Stadt, Region und Land umgewandelt (`reverse_geocoder`), mit deutschen Namen („München“, „Lissabon“, „Bayern“).
 - Spätere Aktualisierungen lesen nur neue oder geänderte Dateien. Verschobene oder umbenannte Bilder behalten ihre Albumzuordnung.
 - Funktioniert auch mit jedem anderen Ordner, etwa einer externen Festplatte. Die Platzhalter-Funktionen gibt es nur unter Windows.
 
@@ -166,7 +166,7 @@ Die Tests verwenden ausschließlich erzeugte Testbilder und erfundene Graph-Antw
 
 [MIT](LICENSE). Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen (überwiegend MIT/BSD, `reverse_geocoder` unter LGPL 2.1). Beim Build entsteht daraus automatisch `THIRD_PARTY_LICENSES.txt`; der Installer legt sie in den Programmordner, im Programm steht sie unter *Version → Lizenzen der mitgelieferten Software*. Erzeugen von Hand: `python -m bilderkatalog.lizenzen`.
 
-Ortsdaten © [GeoNames.org](https://www.geonames.org), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+Ortsdaten © [GeoNames.org](https://www.geonames.org), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Die deutschen Orts- und Regionsnamen in `bilderkatalog/data/ortsnamen_de.tsv.gz` sind daraus mit [`tools/ortsnamen.py`](tools/ortsnamen.py) zusammengestellt.
 
 ## Marken
 

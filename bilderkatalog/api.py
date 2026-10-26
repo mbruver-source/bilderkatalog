@@ -41,10 +41,29 @@ class State:
         self.login_job = Job("login")
         conn = db.connect(self.db_path)
         try:
+            vorher = conn.execute("PRAGMA user_version").fetchone()[0]
             if db.init(conn):  # neu angelegt oder migriert
                 duplicates.refresh(conn)
+                if 0 < vorher < 5:
+                    self._ortsnamen_umstellen(conn)
         finally:
             conn.close()
+
+    def _ortsnamen_umstellen(self, conn: sqlite3.Connection) -> None:
+        """Ältere Kataloge: Orte auf Deutsch umstellen. Läuft im Hintergrund mit Fortschrittsanzeige."""
+        if not places.eindeutschen_katalog(conn):
+            return
+
+        def run(job: Job):
+            job.update("Ortsnamen werden auf Deutsch umgestellt (einmalig) …")
+            umstellung = self.connect()
+            try:
+                geocode.geocode_pending(umstellung)
+            finally:
+                umstellung.close()
+            job.update("Ortsnamen sind jetzt deutsch.")
+
+        self.sync_job.start(run)
 
     @property
     def auth(self) -> Auth | None:

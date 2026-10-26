@@ -1,8 +1,8 @@
 """Offline-Ortsauflösung: GPS-Koordinaten → Stadt, Region, Land.
 
 Nutzt den GeoNames-Datensatz von `reverse_geocoder`; es werden keine
-Koordinaten an externe Dienste übertragen. Ländernamen werden erst in der
-Oberfläche aus dem ISO-Code lokalisiert.
+Koordinaten an externe Dienste übertragen. Orts- und Regionsnamen kommen auf
+Deutsch aus ortsnamen.py, Ländernamen lokalisiert erst die Oberfläche.
 """
 
 from __future__ import annotations
@@ -18,7 +18,9 @@ Lookup = Callable[[list[tuple[float, float]]], list[dict]]
 def _default_lookup(coords: list[tuple[float, float]]) -> list[dict]:
     import reverse_geocoder  # lädt den Datensatz erst bei Bedarf (einige Sekunden)
 
-    return reverse_geocoder.search(coords, mode=1, verbose=False)
+    from . import ortsnamen
+
+    return [ortsnamen.eindeutschen(r) for r in reverse_geocoder.search(coords, mode=1, verbose=False)]
 
 
 def geocode_pending(conn: sqlite3.Connection, lookup: Lookup | None = None) -> int:

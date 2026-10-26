@@ -117,9 +117,10 @@ def _orte(kontext: dict) -> str:
 
     conn = kontext["conn"]
     geocode.geocode_pending(conn)
-    city, country = conn.execute("SELECT city, country_code FROM photo").fetchone()
+    city, region, country = conn.execute("SELECT city, region, country_code FROM photo").fetchone()
     assert country == "FR", (city, country)
-    return f"{city}, {country}"
+    assert region == "Île-de-France", f"deutsche Ortsnamen fehlen? Region {region!r}"  # data/ortsnamen_de.tsv.gz
+    return f"{city}, {region}, {country}"
 
 
 def _vorschau(kontext: dict) -> str:

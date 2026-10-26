@@ -107,7 +107,7 @@ Was du gerade siehst, kannst du komplett weiterverwenden:
 - **Ansicht → Album** übernimmt alle Bilder der Ansicht in ein Album, zum Beispiel „alle Bilder aus Portugal“.
 - **Ansicht → ZIP** packt alle Bilder der Ansicht in eine ZIP-Datei.
 
-> Die Ortsnamen stammen aus dem freien Ortsverzeichnis GeoNames. Manche Städte heißen dort englisch, etwa „Rome“ oder „Lisbon“. Die Ländernamen sind deutsch.
+> Die Ortsnamen stammen aus dem freien Ortsverzeichnis GeoNames und sind deutsch, etwa „München“, „Lissabon“ oder „Bayern“. Gibt es keinen deutschen Namen, steht der Name in der Landessprache da.
 
 ## 6. Bilder, die nur online liegen
 
@@ -181,7 +181,7 @@ Ein ungefähres Datum wird zum Anfang des Jahres bzw. Monats einsortiert und in 
 Viele Bilder haben keine GPS-Daten, etwa von älteren Kameras, eingescannte Fotos oder Bilder aus Messengern. Manchmal stimmt die Position auch nicht. So setzt du den Ort:
 
 1. Bilder auswählen und in der Auswahlleiste **Ort …** wählen, oder in der Großansicht **Ort hinzufügen …** bzw. **Ort ändern …**. Ein guter Startpunkt ist **Prüfen → Ohne GPS**.
-2. Den Ort eintippen. Vorgeschlagen werden zuerst Orte, die schon in deinem Katalog vorkommen, dann Orte aus dem Ortsverzeichnis. Gängige deutsche Namen wie „Lissabon“ oder „München“ werden erkannt, Umlaute kannst du so oder als „oe“ schreiben.
+2. Den Ort eintippen. Vorgeschlagen werden zuerst Orte, die schon in deinem Katalog vorkommen, dann Orte aus dem Ortsverzeichnis. Du kannst deutsche oder englische Namen verwenden („Lissabon“ oder „Lisbon“), Umlaute so oder als „oe“ schreiben. Größere Orte stehen weiter oben.
 3. Den richtigen Treffer anklicken und **Speichern** (oder Doppelklick bzw. <kbd>Enter</kbd>).
 
 Statt eines Namens kannst du auch **Koordinaten** eingeben, z. B. `38.7223, -9.1393`. Die bekommst du aus jeder Karten-App, oft per Rechtsklick auf die Stelle. Das ist genauer, wenn es um einen bestimmten Strand oder ein Ferienhaus geht. Der Ortsname wird dann automatisch bestimmt.

@@ -6,7 +6,8 @@ Die erste Version des Bilderkatalogs als Windows-Programm mit Installer.
 - Liest deinen OneDrive-Ordner (oder jeden anderen Ordner) ein, ohne Anmeldung und ohne
   Bilder herunterzuladen. Auch „Nur online“-Bilder bekommen sofort ihr Aufnahmedatum.
 - Sortieren und filtern nach Jahr, Monat, Ort, Ordner, Kamera und Dateiname.
-- Orte werden offline aus den GPS-Daten bestimmt, es werden keine Daten verschickt.
+- Orte werden offline aus den GPS-Daten bestimmt, mit deutschen Namen („München“, „Lissabon“,
+  „Bayern“). Es werden keine Daten verschickt.
 - Ereignisse: zusammengehörende Bilder (z. B. ein Urlaubstag) werden automatisch erkannt.
 
 **Alben und Export**
@@ -20,7 +21,7 @@ Die erste Version des Bilderkatalogs als Windows-Programm mit Installer.
   ausblenden“ zeigt überall nur ein Exemplar. Gelöscht wird nichts.
 - Aufnahmedatum von Hand setzen, z. B. „07.1998“ für eingescannte Fotos.
 - Ort hinzufügen, ändern oder entfernen – für ein Bild oder eine ganze Auswahl. Ortssuche
-  offline, auch mit deutschen Namen („Lissabon“), oder per Koordinaten aus einer Karten-App.
+  offline mit deutschen oder englischen Namen, oder per Koordinaten aus einer Karten-App.
 - Beides gilt nur im Katalog und bleibt beim erneuten Einlesen erhalten.
 
 **Nur-online-Bilder und Videos**

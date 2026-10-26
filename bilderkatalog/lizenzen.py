@@ -27,7 +27,11 @@ Die Zuordnung von GPS-Koordinaten zu Orten verwendet den Datensatz "cities1000" 
 GeoNames (https://www.geonames.org), mitgeliefert durch das Paket reverse_geocoder.
 Lizenz: Creative Commons Namensnennung 4.0 International (CC BY 4.0),
 https://creativecommons.org/licenses/by/4.0/
-Ortsdaten © GeoNames.org. Die Daten wurden nicht verändert."""
+Ortsdaten © GeoNames.org.
+Änderungen: Für deutsche Orts- und Regionsnamen und die Sortierung nach Einwohnerzahl
+wurden aus den GeoNames-Dateien cities1000, alternateNamesV2 und admin1CodesASCII
+Namen und Einwohnerzahlen ausgewählt und zusammengeführt
+(bilderkatalog/data/ortsnamen_de.tsv.gz, erzeugt mit tools/ortsnamen.py)."""
 
 LGPL_HINWEIS = """Hinweis zur LGPL (reverse_geocoder)
 reverse_geocoder steht unter der GNU Lesser General Public License 2.1 (Volltext unten).

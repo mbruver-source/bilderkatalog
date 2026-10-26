@@ -10,7 +10,7 @@ dist/
 
 # Persönliche Daten – dürfen niemals ins Repository
 .env
-data/
+/data/
 *.db
 *.db-wal
 *.db-shm

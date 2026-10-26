@@ -41,7 +41,7 @@ packages = ["bilderkatalog"]
 version = { attr = "bilderkatalog.version.VERSION" }  # aus version.txt via bump_version.py
 
 [tool.setuptools.package-data]
-bilderkatalog = ["static/*"]
+bilderkatalog = ["static/*", "data/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
